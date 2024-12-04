@@ -10,22 +10,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        architecture:
-          - armeabi-v7a
-          - arm64-v8a
-          - x86_64
-
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup JDK
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+      - uses: gradle/actions/setup-gradle@v3
 
       - name: Cache Gradle dependencies
         uses: actions/cache@v3
@@ -35,16 +26,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Set up Keystore
+      - name: Build APK
         run: |
-          echo "$ANDROID_KEYSTORE" > $HOME/keystore.jks
-        env:
-          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
-
-      - name: Build APK for ${{ matrix.architecture }}
-        run: |
-          ARCH=$(echo "${{ matrix.architecture }}" | sed -E 's/^(.)(.*)$/\U\1\E\2/')
-          ./gradlew assemble${ARCH}Release \
+          ./gradlew assembleRelease \
             -Psigning.keyAlias=${{ secrets.ALIAS }} \
             -Psigning.keyPassword=${{ secrets.KEY_PASSWORD }} \
             -Psigning.storeFile=$HOME/keystore.jks \
@@ -53,5 +37,5 @@ jobs:
       - name: Upload APKs to GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          artifacts: app/build/outputs/apk/release/app-${{ matrix.architecture }}-release.apk
+          artifacts: app/build/outputs/apk/release/app-release.apk
           tag: ${{ github.ref }}
