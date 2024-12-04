@@ -12,6 +12,7 @@ composeBom = "2024.04.01"
 lifecycleViewmodelCompose = "2.8.5"
 preferenceVersion = "1.2.1"
 media3Exoplayer = "1.5.0"
+roomCompiler = "2.5.1"
 roomVersion = "2.6.1"
 datastoreCoreAndroid = "1.1.1"
 datastoreCoreJvm = "1.1.1"
@@ -22,6 +23,7 @@ androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = 
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
 androidx-preference-ktx = { module = "androidx.preference:preference-ktx", version.ref = "preferenceVersion" }
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "roomCompiler" }
 androidx-room-room-runtime2 = { module = "androidx.room:room-runtime", version.ref = "roomVersion" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "roomVersion" }
 androidx-room-testing = { module = "androidx.room:room-testing", version.ref = "roomVersion" }

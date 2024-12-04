@@ -71,7 +71,7 @@ dependencies {
     implementation(libs.androidx.datastore.core.android)
     implementation(libs.androidx.constraintlayout)
     testImplementation(libs.androidx.room.testing)
-    ksp("androidx.room:room-compiler:2.5.1")
+    ksp(libs.androidx.room.compiler)
 
     implementation(libs.androidx.datastore.preferences)
 

@@ -12,7 +12,7 @@ import io.ktor.http.isSuccess
 import io.ktor.serialization.gson.gson
 
 
-public suspend fun listVoices(): Result<List<Voice>> {
+suspend fun listVoices(): Result<List<Voice>> {
     val client = HttpClient(CIO) {
         install(ContentNegotiation) {
             gson() {

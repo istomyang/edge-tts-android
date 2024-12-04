@@ -48,7 +48,7 @@ class SpeakerRepository(
                 VoiceDatabase::class.java,
                 "voice"
             ).build()
-            val localDS = SpeakerLocalDataSource(db, db.voiceDao())
+            val localDS = SpeakerLocalDataSource(db.voiceDao())
             val remoteDS = SpeakerRemoteDataSource()
 
             return SpeakerRepository(localDS, remoteDS)
@@ -82,4 +82,4 @@ class SpeakerRemoteDataSource {
     }
 }
 
-class SpeakerLocalDataSource(private val db: VoiceDatabase, val dao: VoiceDao)
+class SpeakerLocalDataSource(val dao: VoiceDao)

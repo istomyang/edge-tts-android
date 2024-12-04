@@ -41,7 +41,7 @@ class EdgeTTSService : TextToSpeechService() {
     }
 
     override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int {
-        return TextToSpeech.LANG_AVAILABLE;
+        return TextToSpeech.LANG_AVAILABLE
     }
 
 
