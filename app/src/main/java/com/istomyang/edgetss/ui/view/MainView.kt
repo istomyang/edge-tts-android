@@ -202,21 +202,22 @@ private fun AddView(
 ) {
     val viewModel = LocalMainViewModel.current
 
-    var gender by remember { mutableStateOf("") }
     var lang by remember { mutableStateOf("") }
     var country by remember { mutableStateOf("") }
     var speaker by remember { mutableStateOf("") }
 
-    if (gender != "" && viewModel.countries.isEmpty()) {
-        viewModel.fetchLanguages()
-    }
+    var languages by remember { mutableStateOf(emptyList<String>()) }
+    var countries by remember { mutableStateOf(emptyList<String>()) }
+    var voices by remember { mutableStateOf(emptyList<VoiceInfo>()) }
 
-    if (lang != "" && viewModel.countries.isEmpty()) {
-        viewModel.fetchCountries(lang)
+    if (languages.isEmpty()) {
+        viewModel.fetchLanguages { languages = it }
     }
-
-    if (country != "" && viewModel.voices.isEmpty()) {
-        viewModel.fetchVoices(gender, "$lang-$country")
+    if (lang != "") {
+        viewModel.fetchCountries(lang) { countries = it }
+    }
+    if (country != "") {
+        viewModel.fetchVoices("$lang-$country") { voices = it }
     }
 
     Dialog(
@@ -242,31 +243,22 @@ private fun AddView(
                 )
 
                 PickerView(
-                    title = "Gender",
-                    data = listOf(
-                        PickOption("Male", "Male"),
-                        PickOption("Female", "Female"),
-                    ),
-                    onSelected = { gender = it },
-                )
-
-                PickerView(
                     title = "Language",
-                    data = viewModel.languages.map { PickOption(it, it) },
+                    data = languages.map { PickOption(it, it) },
                     onSelected = { lang = it },
-                    enable = gender != ""
+                    enable = true
                 )
 
                 PickerView(
                     title = "Country",
-                    data = viewModel.countries.map { PickOption(it, it) },
+                    data = countries.map { PickOption(it, it) },
                     onSelected = { country = it },
                     enable = lang != "",
                 )
 
                 PickerView(
                     title = "Speaker",
-                    data = viewModel.voices.map { PickOption(it.title, it.id.toString()) },
+                    data = voices.map { PickOption(it.title, it.id.toString()) },
                     onSelected = { speaker = it },
                     enable = country != "",
                 )

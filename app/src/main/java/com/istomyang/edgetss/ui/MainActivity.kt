@@ -11,6 +11,7 @@ import com.istomyang.edgetss.ui.view.LocalMainViewModel
 import com.istomyang.edgetss.ui.view.MainView
 import com.istomyang.edgetss.ui.view.MainViewModel
 
+
 class MainActivity : ComponentActivity() {
 
 
@@ -18,7 +19,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val viewModel by viewModels<MainViewModel>()
         viewModel.ensureLocalInitialized()
-
         enableEdgeToEdge()
         setContent {
             CompositionLocalProvider(LocalMainViewModel provides viewModel) {

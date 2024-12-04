@@ -19,8 +19,8 @@ class SpeakerRepository(
         return localDS.dao.get(id)
     }
 
-    suspend fun query(gender: String, locale: String): List<Voice> {
-        return localDS.dao.query(gender, locale)
+    suspend fun query(locale: String): List<Voice> {
+        return localDS.dao.query(locale)
     }
 
     suspend fun queryLocales(): List<String> {

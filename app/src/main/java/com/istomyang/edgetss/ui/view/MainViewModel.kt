@@ -2,9 +2,6 @@ package com.istomyang.edgetss.ui.view
 
 import android.app.Application
 import androidx.compose.runtime.compositionLocalOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.istomyang.edgetss.data.PreferenceRepository
@@ -27,36 +24,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     var speakers = MutableStateFlow<List<Speaker>>(emptyList())
 
-    var languages by mutableStateOf(emptyList<String>())
-        private set
 
-    var countries by mutableStateOf(emptyList<String>())
-        private set
-
-    var voices by mutableStateOf(emptyList<VoiceInfo>())
-        private set
-
-    fun fetchLanguages() {
+    fun fetchLanguages(cb: (data: List<String>) -> Unit) {
         viewModelScope.launch {
-            languages = speakerRepository.queryLocales().map {
+            val data = speakerRepository.queryLocales().map {
                 it.split("-").first()
             }.distinct()
+            cb(data)
         }
     }
 
-    fun fetchCountries(lang: String) {
+    fun fetchCountries(lang: String, cb: (data: List<String>) -> Unit) {
         viewModelScope.launch {
-            countries = speakerRepository.queryLocales().filter { it.startsWith(lang) }
+            val data = speakerRepository.queryLocales().filter { it.startsWith(lang) }
                 .map { it.split("-").last() }.distinct()
+            cb(data)
         }
     }
 
-    fun fetchVoices(gender: String, locale: String) {
+    fun fetchVoices(locale: String, cb: (data: List<VoiceInfo>) -> Unit) {
         viewModelScope.launch {
-            voices = speakerRepository.query(gender, locale).map { VoiceInfo.from(it) }
-            println()
+            val data = speakerRepository.query(locale).map { VoiceInfo.from(it) }
+            cb(data)
         }
     }
+
 
     fun addSpeaker(id: Int) {
         viewModelScope.launch {
@@ -146,8 +138,9 @@ data class VoiceInfo(val title: String, val id: Int) {
     companion object {
         fun from(voice: Voice): VoiceInfo {
             val name = extractVoiceName(voice)
-            val description = voice.voicePersonalities + voice.contentCategories
-            return VoiceInfo("$name - $description", voice.uid)
+            val gender = voice.gender
+            val description = voice.contentCategories
+            return VoiceInfo("$name - $gender - $description", voice.uid)
         }
     }
 }

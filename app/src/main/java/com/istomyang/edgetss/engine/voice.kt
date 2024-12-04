@@ -1,5 +1,6 @@
 package com.istomyang.edgetss.engine
 
+import androidx.annotation.Keep
 import com.google.gson.FieldNamingPolicy
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -69,6 +70,7 @@ private fun buildUrl(): String {
 //    }
 //}
 
+@Keep
 data class Voice(
     val name: String,
     val shortName: String,
@@ -80,4 +82,5 @@ data class Voice(
     val voiceTag: VoiceTag
 )
 
+@Keep
 data class VoiceTag(val contentCategories: List<String>, val voicePersonalities: List<String>)

@@ -30,8 +30,8 @@ interface VoiceDao {
     @Query("SELECT * FROM voice WHERE uid IN (:ids)")
     suspend fun getByIds(ids: List<Int>): List<Voice>
 
-    @Query("SELECT * FROM voice WHERE gender = :gender AND locale = :locale")
-    suspend fun query(gender: String, locale: String): List<Voice>
+    @Query("SELECT * FROM voice WHERE locale = :locale")
+    suspend fun query(locale: String): List<Voice>
 
     @Query("SELECT DISTINCT locale FROM voice")
     suspend fun listLocales(): List<String>

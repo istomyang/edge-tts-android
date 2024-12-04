@@ -15,11 +15,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
-
 class EdgeTTSService : TextToSpeechService() {
-    private val coroutineScope = CoroutineScope(Dispatchers.IO)
-    private lateinit var preferenceRepository: PreferenceRepository
-
 
     private var prepared = false
     private lateinit var language: String
@@ -28,7 +24,7 @@ class EdgeTTSService : TextToSpeechService() {
 
     override fun onCreate() {
         super.onCreate()
-        
+
         val preferenceRepository = PreferenceRepository.create(this)
         val speakerRepository = SpeakerRepository.create(this)
 
