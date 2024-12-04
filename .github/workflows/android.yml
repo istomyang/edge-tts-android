@@ -1,0 +1,56 @@
+name: Android Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # 仅当你发布版本（tag）时触发
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        architecture:
+          - armeabi-v7a
+          - arm64-v8a
+          - x86_64
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Set up Keystore
+        run: |
+          echo "$ANDROID_KEYSTORE" > $HOME/keystore.jks
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+
+      - name: Build APK for ${{ matrix.architecture }}
+        run: |
+          ./gradlew assemble${{ matrix.architecture.capitalize() }}Release \
+            -Psigning.keyAlias=${{ secrets.ALIAS }} \
+            -Psigning.keyPassword=${{ secrets.KEY_PASSWORD }} \
+            -Psigning.storeFile=$HOME/keystore.jks \
+            -Psigning.storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+
+      - name: Upload APKs to GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: app/build/outputs/apk/release/app-${{ matrix.architecture }}-release.apk
+          tag: ${{ github.ref }}
