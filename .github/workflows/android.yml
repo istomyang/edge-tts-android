@@ -43,7 +43,8 @@ jobs:
 
       - name: Build APK for ${{ matrix.architecture }}
         run: |
-          ./gradlew assemble${{ matrix.architecture.capitalize() }}Release \
+          ARCH=$(echo "${{ matrix.architecture }}" | sed -E 's/^(.)(.*)$/\U\1\E\2/')
+          ./gradlew assemble${{ARCH}}Release \
             -Psigning.keyAlias=${{ secrets.ALIAS }} \
             -Psigning.keyPassword=${{ secrets.KEY_PASSWORD }} \
             -Psigning.storeFile=$HOME/keystore.jks \
