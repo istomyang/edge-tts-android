@@ -5,6 +5,7 @@ import android.speech.tts.SynthesisCallback
 import android.speech.tts.SynthesisRequest
 import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeechService
+import com.istomyang.edgetss.data.LogRepository
 import com.istomyang.edgetss.data.PreferenceRepository
 import com.istomyang.edgetss.data.SpeakerRepository
 import com.istomyang.edgetss.engine.request
@@ -16,6 +17,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 class EdgeTTSService : TextToSpeechService() {
+    companion object {
+        const val DOMAIN = "service/edge-tts"
+        const val DOMAIN_SPEECH = "$DOMAIN/speech"
+    }
+
+    private lateinit var log: LogRepository
 
     private var prepared = false
     private lateinit var language: String
@@ -27,6 +34,7 @@ class EdgeTTSService : TextToSpeechService() {
 
         val preferenceRepository = PreferenceRepository.create(this)
         val speakerRepository = SpeakerRepository.create(this)
+        log = LogRepository.create(this)
 
         CoroutineScope(Dispatchers.IO).launch {
             preferenceRepository.activeSpeakerId.collectLatest { id ->
@@ -37,6 +45,7 @@ class EdgeTTSService : TextToSpeechService() {
                 outputFormat = speaker.suggestedCodec
                 prepared = true
             }
+            log.info(DOMAIN, "Use speaker: $voiceName - $language - $outputFormat")
         }
     }
 
@@ -64,6 +73,8 @@ class EdgeTTSService : TextToSpeechService() {
         val pitch = request.pitch - 100
         val rate = request.speechRate - 100
 
+        log.info(DOMAIN_SPEECH, "Request: $text")
+
         callback.start(24000, AudioFormat.ENCODING_PCM_16BIT, 1)
 
         runBlocking {
@@ -78,11 +89,14 @@ class EdgeTTSService : TextToSpeechService() {
             ).onSuccess { data ->
                 val pcmData = mp3ToPcm(data)
                 sendAudioData(callback, pcmData).onFailure {
+                    log.error(DOMAIN_SPEECH, "Failed to send audio data: ${it.message}")
                     callback.error()
                 }.onSuccess {
+                    log.info(DOMAIN_SPEECH, "Finished.")
                     callback.done()
                 }
             }.onFailure {
+                log.error(DOMAIN_SPEECH, "Failed to request: ${it.message}")
                 callback.error()
             }
         }

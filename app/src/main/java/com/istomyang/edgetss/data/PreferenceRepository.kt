@@ -3,8 +3,10 @@ package com.istomyang.edgetss.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -15,8 +17,11 @@ class PreferenceRepository(
     private val localDS: PreferenceLocalDataSource
 ) {
     companion object {
-        private const val SPEAKER_ACTIVE_ID = "preference.active-speaker.id"
-        private const val SPEAKER_SELECTED_ID = "preference.selected-speaker.id"
+        private const val SPEAKER_ACTIVE_ID = "preference.speaker.active-id"
+        private const val SPEAKER_SELECTED_ID = "preference.speaker.selected-id"
+
+        private const val LOG_OPEN = "preference.log.open"
+        private const val LOG_SAVE_TIME = "preference.log.save-time" // day
 
         fun create(context: Context): PreferenceRepository {
             val dataStore = context.dateStorePreference
@@ -38,6 +43,12 @@ class PreferenceRepository(
         }
         localDS.setList(SPEAKER_SELECTED_ID, ids)
     }
+
+    var logOpen: Flow<Boolean?> = localDS.getBoolean(LOG_OPEN)
+    suspend fun setLogOpen(open: Boolean) = localDS.setBoolean(LOG_OPEN, open)
+
+    var logSaveTime: Flow<Int?> = localDS.getInt(LOG_SAVE_TIME)
+    suspend fun setLogSaveTime(time: Int) = localDS.setInt(LOG_SAVE_TIME, time)
 }
 
 val Context.dateStorePreference by preferencesDataStore("preference")
@@ -68,6 +79,30 @@ class PreferenceLocalDataSource(private val dataStore: DataStore<Preferences>) {
             } else {
                 settings[k] = value
             }
+        }
+    }
+
+    fun getLong(key: String): Flow<Long?> {
+        val k = longPreferencesKey(key)
+        return dataStore.data.map { it[k]?.toLong() }
+    }
+
+    suspend fun setLong(key: String, value: Long) {
+        val k = longPreferencesKey(key)
+        dataStore.edit { settings ->
+            settings[k] = value
+        }
+    }
+
+    fun getBoolean(key: String): Flow<Boolean?> {
+        val k = booleanPreferencesKey(key)
+        return dataStore.data.map { it[k] }
+    }
+
+    suspend fun setBoolean(key: String, value: Boolean) {
+        val k = booleanPreferencesKey(key)
+        dataStore.edit { settings ->
+            settings[k] = value
         }
     }
 

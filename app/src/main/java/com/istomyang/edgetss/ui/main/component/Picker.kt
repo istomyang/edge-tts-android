@@ -1,14 +1,22 @@
-package com.istomyang.edgetss.ui.view.component
+package com.istomyang.edgetss.ui.main.component
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.UnfoldLess
+import androidx.compose.material.icons.filled.UnfoldMore
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -18,15 +26,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PickerView(
+fun Picker(
     title: String,
     data: List<PickOption>,
     onSelected: (value: String) -> Unit,
@@ -105,16 +115,79 @@ private fun PickerViewPreview() {
 
     Box(Modifier.size(300.dp)) {
         Column {
-            PickerView(
+            Picker(
                 title = "Select Option",
                 data = data,
                 onSelected = {},
             )
-            PickerView(
+            Picker(
                 title = "Select Option2",
                 data = data,
                 onSelected = {},
             )
         }
+    }
+}
+
+
+data class OptionItem(val name: String, val value: String, val icon: ImageVector? = null)
+
+@Composable
+fun OptionPicker(
+    modifier: Modifier = Modifier,
+    default: String,
+    options: List<OptionItem>,
+    onClick: (value: String) -> Unit
+) {
+    var expanded = remember { mutableStateOf(false) }
+    var selected = remember { mutableStateOf<OptionItem?>(null) }
+    Column(modifier = modifier, verticalArrangement = Arrangement.Center) {
+        DropdownMenu(
+            expanded = expanded.value,
+            onDismissRequest = { expanded.value = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.name) },
+                    onClick = {
+                        expanded.value = false
+                        selected.value = option
+                        onClick(option.value)
+                    },
+                    leadingIcon = (if (option.icon != null) {
+                        Icon(option.icon, contentDescription = null)
+                    } else {
+                        null
+                    }) as @Composable (() -> Unit)?
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.clickable(onClick = { expanded.value = !expanded.value }),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = selected.value?.name ?: default, fontStyle = MaterialTheme.typography.titleLarge.fontStyle)
+            Icon(
+                imageVector = if (expanded.value) Icons.Filled.UnfoldLess else Icons.Filled.UnfoldMore,
+                contentDescription = null,
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun OptionPickerPreview() {
+    Column(
+        modifier = Modifier.size(300.dp)
+    ) {
+        OptionPicker(
+            default = "Default",
+            options = listOf(
+                OptionItem("Option1", "value1"),
+                OptionItem("Option2", "value2"),
+                OptionItem("Option3", "value3"),
+            ),
+            onClick = {}
+        )
     }
 }

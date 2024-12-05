@@ -3,8 +3,7 @@ name: Android Build and Release
 on:
   push:
     tags:
-      - 'v*'  # 仅当你发布版本（tag）时触发
-  workflow_dispatch:
+      - 'v*'
 
 jobs:
   build:
@@ -39,6 +38,6 @@ jobs:
       - name: Upload APKs to GitHub Release
         uses: ncipollo/release-action@v1
         with:
+          allowUpdates: true
           artifacts: app/build/outputs/apk/release/app-release.apk
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref }}

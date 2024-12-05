@@ -24,6 +24,7 @@ android {
 
     buildTypes {
         release {
+            applicationIdSuffix = ".release"
             isShrinkResources = true
             isMinifyEnabled = true
             proguardFiles(
@@ -31,6 +32,13 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("debug")
+        }
+        debug {
+            applicationIdSuffix = ".debug"
+        }
+        create("debug-beta") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".deug.beta"
         }
     }
     compileOptions {

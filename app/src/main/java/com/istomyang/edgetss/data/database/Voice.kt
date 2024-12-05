@@ -37,7 +37,7 @@ interface VoiceDao {
     suspend fun listLocales(): List<String>
 }
 
-@Entity(tableName = "voice", indices = [Index("gender"), Index("locale")])
+@Entity(tableName = "voice", indices = [Index("locale")])
 data class Voice(
     @PrimaryKey val uid: Int,
     @ColumnInfo(name = "name") val name: String,
