@@ -11,8 +11,11 @@ import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 
-class LogRepository(val dataSource: LogDataSource) {
+class LogRepository(val dataSource: LogDataSource, val disabled: Boolean) {
     suspend fun insert(domain: String, level: LogLevel, message: String) {
+        if (disabled) {
+            return
+        }
         val log = Log(
             domain = domain,
             level = level.name,
@@ -41,12 +44,12 @@ class LogRepository(val dataSource: LogDataSource) {
     suspend fun query(
         domain: String = "",
         level: LogLevel = LogLevel.INFO,
-        afterAt: Long = timestampBefore(5, 0, 0),
-        p: Int,
-        z: Int
+        afterAt: Long = timestampBefore(0, 0, 1),
+        o: Int,
+        l: Int
     ): List<Log> {
         return dataSource.dao.query(
-            domain, level.name, afterAt, p, z
+            domain, level.name, afterAt, o, l
         )
     }
 
@@ -59,13 +62,13 @@ class LogRepository(val dataSource: LogDataSource) {
     }
 
     companion object {
-        fun create(context: Context): LogRepository {
+        fun create(context: Context, disabled: Boolean = false): LogRepository {
             val db = Room.databaseBuilder(
                 context,
                 LogDatabase::class.java,
                 "log"
             ).build()
-            return LogRepository(LogDataSource(db.logDao()))
+            return LogRepository(LogDataSource(db.logDao()), disabled)
         }
 
         fun timestampBefore(min: Long, hour: Long, day: Long): Long {

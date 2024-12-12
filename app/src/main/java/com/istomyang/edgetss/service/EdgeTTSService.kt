@@ -18,7 +18,7 @@ import kotlinx.coroutines.runBlocking
 
 class EdgeTTSService : TextToSpeechService() {
     companion object {
-        const val DOMAIN = "service/edge-tts"
+        const val DOMAIN = "s/tts"
         const val DOMAIN_SPEECH = "$DOMAIN/speech"
     }
 
@@ -34,7 +34,14 @@ class EdgeTTSService : TextToSpeechService() {
 
         val preferenceRepository = PreferenceRepository.create(this)
         val speakerRepository = SpeakerRepository.create(this)
-        log = LogRepository.create(this)
+
+        val that = this
+        CoroutineScope(Dispatchers.Default).launch {
+            preferenceRepository.logOpen.collect { it ->
+                val open = it == true
+                log = LogRepository.create(that, !open)
+            }
+        }
 
         CoroutineScope(Dispatchers.IO).launch {
             preferenceRepository.activeSpeakerId.collectLatest { id ->
@@ -73,9 +80,9 @@ class EdgeTTSService : TextToSpeechService() {
         val pitch = request.pitch - 100
         val rate = request.speechRate - 100
 
-        log.info(DOMAIN_SPEECH, "Request: $text")
-
         callback.start(24000, AudioFormat.ENCODING_PCM_16BIT, 1)
+
+        val t0 = System.currentTimeMillis()
 
         runBlocking {
             request(
@@ -87,16 +94,19 @@ class EdgeTTSService : TextToSpeechService() {
                 outputFormat,
                 text,
             ).onSuccess { data ->
+                val kb = data.size.toDouble() / 1024.0
+                val t = System.currentTimeMillis() - t0
+                log.info(DOMAIN_SPEECH, "$text | ${kb}KB | ${t}ms")
+
                 val pcmData = mp3ToPcm(data)
                 sendAudioData(callback, pcmData).onFailure {
-                    log.error(DOMAIN_SPEECH, "Failed to send audio data: ${it.message}")
+                    log.error(DOMAIN_SPEECH, "$text | ${it.message}")
                     callback.error()
                 }.onSuccess {
-                    log.info(DOMAIN_SPEECH, "Finished.")
                     callback.done()
                 }
             }.onFailure {
-                log.error(DOMAIN_SPEECH, "Failed to request: ${it.message}")
+                log.error(DOMAIN_SPEECH, "$text | ${it.message}")
                 callback.error()
             }
         }

@@ -26,7 +26,7 @@ fun MainContent() {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    val screens: List<Screen> = listOf(SpeakerScreen)
+    val screens: List<Screen> = listOf(SpeakerScreen, LogScreen)
     val selectedScreen = remember { mutableStateOf(screens[0]) }
 
     // The reason I don't use [NavigationBar] is that [Scaffold] needs to be in the parent
@@ -39,7 +39,6 @@ fun MainContent() {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
-                modifier = Modifier.width(120.dp)
             ) {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Spacer(Modifier.height(12.dp))
@@ -59,9 +58,7 @@ fun MainContent() {
             }
         },
     ) {
-        when (selectedScreen.value) {
-            SpeakerScreen -> SpeakerScreen.makeContent { scope.launch { drawerState.open() } }
-        }
+        selectedScreen.value.makeContent { scope.launch { drawerState.open() } }
     }
 }
 

@@ -3,6 +3,8 @@ package com.istomyang.edgetss.ui.main
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -13,13 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CleaningServices
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.FilterAlt
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.RadioButtonChecked
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Card
 import androidx.compose.material3.DropdownMenu
@@ -27,7 +23,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -38,6 +33,7 @@ import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -77,10 +73,10 @@ private fun ContentView(openDrawer: () -> Unit) {
 
     var openSetting = remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { // Unit 表示该 Effect 仅在第一次组合时启动
+    LaunchedEffect(Unit) {
         while (true) {
             viewModel.fetchLog(domain = domain.value, level = level.value)
-            delay(1000L)
+            delay(100L)
         }
     }
 
@@ -95,7 +91,7 @@ private fun ContentView(openDrawer: () -> Unit) {
                 IconButton("Menu", Icons.Default.Menu) { openDrawer() }
             }, actions = {
                 IconButton("Setting", Icons.Filled.Settings) {
-
+                    openSetting.value = true
                 }
             })
         }, bottomBar = {
@@ -103,15 +99,22 @@ private fun ContentView(openDrawer: () -> Unit) {
                 actions = {
                     DurationIconMenu { ts ->
                         viewModel.cleanLog(beforeAt = ts)
+                        viewModel.clearScreen()
                     }
-                    LogFilter(onChangeLevel = { level.value = it }, onDomain = { domain.value = it })
+                    LogFilter(onChangeLevel = {
+                        level.value = it
+                        viewModel.clearScreen()
+                    }, onDomain = {
+                        domain.value = it
+                        viewModel.clearScreen()
+                    })
                 }
             )
         }
     ) { innerPadding ->
         LogViewer(
             modifier = Modifier.padding(innerPadding),
-            lines = viewModel.lines.value
+            lines = viewModel.lines
         )
     }
 
@@ -122,13 +125,17 @@ private fun ContentView(openDrawer: () -> Unit) {
     }
 }
 
+//@Preview(showBackground = true)
+@Composable
+private fun ContentViewPreview2() {
+    ContentView(openDrawer = {})
+}
+
 @Composable
 private fun SettingDialog(
     viewModel: LogViewModel,
     onDismiss: () -> Unit
 ) {
-    var checked = remember { mutableStateOf(false) }
-
     data class SaveTimeOption(val name: String, val value: Int)
 
     val saveTimeOptions = listOf(
@@ -142,34 +149,47 @@ private fun SettingDialog(
     Dialog(onDismissRequest = { onDismiss() }) {
         Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .padding(16.dp),
+                .height(300.dp)
+                .fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
         ) {
-            Column {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
                 Text(text = "Log Settings", style = MaterialTheme.typography.headlineSmall)
-                HorizontalDivider()
 
-                ListItem(headlineContent = { Text("Open Log") }, trailingContent = {
+                Row(
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Open Log", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.weight(1F))
                     Switch(
-                        checked = checked.value,
+                        checked = viewModel.logOpened.value,
                         onCheckedChange = {
-                            viewModel.openLog(checked.value)
+                            viewModel.openLog(it)
                         }
                     )
-                })
+                }
 
                 Text("Save Time", style = MaterialTheme.typography.headlineLarge)
 
                 saveTimeOptions.forEach { opt ->
-                    RadioButton(
-                        selected = opt.value == saveTimeSelect.intValue,
-                        onClick = {
-                            saveTimeSelect.intValue = opt.value
-                            viewModel.saveLogTime(saveTimeSelect.intValue)
-                        },
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = opt.value == saveTimeSelect.intValue,
+                            onClick = {
+                                saveTimeSelect.intValue = opt.value
+                                viewModel.saveLogTime(saveTimeSelect.intValue)
+                            },
+                        )
+                        Text(text = opt.name)
+                    }
                 }
             }
         }
@@ -183,31 +203,35 @@ private fun SettingDialogPreview() {
     SettingDialog(viewModel = LogViewModel(LocalContext.current), onDismiss = {})
 }
 
-
 @Composable
 private fun LogViewer(modifier: Modifier = Modifier, lines: List<String>) {
     val lazyListState = rememberLazyListState()
 
     LaunchedEffect(lines.size) {
-        lazyListState.animateScrollToItem(lines.size - 1)
+        if (lines.size > 1) {
+            lazyListState.animateScrollToItem(lines.size - 1)
+        }
     }
 
     LazyColumn(
         state = lazyListState,
         modifier = modifier
             .fillMaxSize()
+            .padding(14.dp)
     ) {
         items(lines) { line ->
             Text(
                 text = line,
                 style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 5.dp)
             )
         }
     }
 }
 
-@Preview(showBackground = true)
+//@Preview(showBackground = true)
 @Composable
 private fun LogViewerPreview() {
     val lines = (0..1000).map {
@@ -226,7 +250,7 @@ private fun LogViewerPreview() {
 
 @Composable
 private fun DurationIconMenu(
-    onClient: (ts: Long) -> Unit
+    onClick: (ts: Long) -> Unit
 ) {
     var expanded = remember { mutableStateOf(false) }
 
@@ -254,7 +278,7 @@ private fun DurationIconMenu(
                     text = { Text(text = option.name) },
                     onClick = {
                         expanded.value = false
-                        onClient(System.currentTimeMillis() - option.value * 60 * 1000)
+                        onClick(System.currentTimeMillis() - option.value * 60 * 1000)
                     },
                     leadingIcon = {
                         Icon(
@@ -345,7 +369,7 @@ private fun LogFilter(
     }
 }
 
-@Preview(showBackground = true)
+//@Preview(showBackground = true)
 @Composable
 private fun LogFilterPreview() {
     Column(
@@ -361,15 +385,19 @@ private class LogViewModel(context: Context) : ViewModel() {
     val logRepository = LogRepository.create(context)
     val preferenceRepository = PreferenceRepository.create(context)
 
-    var lines = mutableStateOf(listOf<String>())
+    var lines = mutableStateListOf<String>()
 
     fun fetchLog(domain: String, level: LogLevel) {
         viewModelScope.launch {
-            val logs = logRepository.query(domain, level, 0, 1, 100)
-            lines.value = logs.map {
-                "${ts2DateTime(it.createdAt)} [${it.level}]([${it.domain}]): ${it.message}"
-            }
+            val logs = logRepository.query(domain = domain, level = level, o = lines.count(), l = 100)
+            lines.addAll(logs.map {
+                "${ts2DateTime(it.createdAt)} ${it.level} ${it.domain}: ${it.message}"
+            })
         }
+    }
+
+    fun clearScreen() {
+        lines.clear()
     }
 
     fun cleanLog(beforeAt: Long) {

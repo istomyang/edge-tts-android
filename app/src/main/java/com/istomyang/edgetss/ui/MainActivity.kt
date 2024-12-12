@@ -34,9 +34,11 @@ class MainActivity : ComponentActivity() {
         val preference = PreferenceRepository.create(this)
         val log = LogRepository.create(this)
         val day = preference.logSaveTime.first()
-        if (day == null) return
-        val ts = LogRepository.timestampBefore(0, 0, day)
-        log.delete("", "", ts)
+        if (day == null) {
+            return
+        }
+        val ts = LogRepository.timestampBefore(0, 0, day.toLong())
+        log.delete(beforeAt = ts)
     }
 }
 

@@ -29,15 +29,16 @@ interface LogDao {
         WHERE (CASE WHEN :domain = '' THEN 1 = 1 ELSE domain = :domain END)
               AND (CASE WHEN :level = '' THEN 1 = 1 ELSE level = :level END)
               AND (CASE WHEN :afterAt = 0 THEN 1 = 1 ELSE created_at > :afterAt END)
-        LIMIT :z OFFSET (:p - 1) * :z
+        ORDER BY created_at ASC 
+        LIMIT :l OFFSET :o
     """
     )
     suspend fun query(
         domain: String = "",
         level: String = "",
         afterAt: Long = 0,
-        p: Int = 1,
-        z: Int = 200
+        o: Int = 0,
+        l: Int = 100
     ): List<Log>
 
     @Query(
