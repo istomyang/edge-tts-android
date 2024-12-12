@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import com.istomyang.edgetss.data.LogRepository
 import com.istomyang.edgetss.data.PreferenceRepository
 import com.istomyang.edgetss.ui.main.MainContent
+import com.istomyang.edgetss.ui.theme.EdgeTSSTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -15,12 +16,13 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         runTask()
-
         enableEdgeToEdge()
         setContent {
-            MainContent()
+            EdgeTSSTheme {
+                MainContent()
+            }
+
         }
     }
 
