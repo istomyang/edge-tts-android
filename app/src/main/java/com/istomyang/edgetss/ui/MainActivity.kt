@@ -4,45 +4,21 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.istomyang.edgetss.data.LogRepository
-import com.istomyang.edgetss.data.PreferenceRepository
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import com.istomyang.edgetss.ui.main.MainContent
 import com.istomyang.edgetss.ui.theme.EdgeTSSTheme
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        runTask()
         enableEdgeToEdge()
         setContent {
-            EdgeTSSTheme {
-                MainContent()
+            CompositionLocalProvider(LocalLifecycleOwner provides this) {
+                EdgeTSSTheme {
+                    MainContent()
+                }
             }
-
         }
-    }
-
-    fun runTask() {
-        CoroutineScope(Dispatchers.IO).launch {
-            cleanLogRegularly()
-        }
-    }
-
-    private suspend fun cleanLogRegularly() {
-        val preference = PreferenceRepository.create(this)
-        val log = LogRepository.create(this)
-        val day = preference.logSaveTime.first()
-        if (day == null) {
-            return
-        }
-        val ts = LogRepository.timestampBefore(0, 0, day.toLong())
-        log.delete(beforeAt = ts)
     }
 }
-
-
-

@@ -9,6 +9,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.url
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readBytes
+import io.ktor.websocket.readReason
 import io.ktor.websocket.readText
 import io.ktor.websocket.send
 import java.io.ByteArrayOutputStream
@@ -40,7 +41,7 @@ suspend fun request(
     val audio = ByteArrayOutputStream()
     var err: Throwable? = null
 
-    buildConnection {
+    val result = buildConnection {
         send(request1(outputFormat))
         send(request2(lang, voice, pitch, rate, volume, text))
 
@@ -63,6 +64,11 @@ suspend fun request(
                     audio.write(data.sliceArray(len + 2 until data.size))
                 }
 
+                is Frame.Close -> {
+                    err = Throwable("WebSocket Close: ${message.readReason()?.message}")
+                    return@buildConnection
+                }
+
                 else -> {
                     err = Throwable("Unexpected behavior: $message")
                     return@buildConnection
@@ -72,35 +78,44 @@ suspend fun request(
         }
     }
 
+    if (result.isFailure) {
+        return Result.failure(result.exceptionOrNull()!!)
+    }
+
     if (err != null) {
-        return Result.failure(err!!)
+        return Result.failure(err)
     }
     return Result.success(audio.toByteArray())
 }
 
 
-private suspend fun buildConnection(run: suspend DefaultClientWebSocketSession.() -> Unit) {
+private suspend fun buildConnection(run: suspend DefaultClientWebSocketSession.() -> Unit): Result<Unit> {
     val client = HttpClient(CIO) {
         install(WebSockets) {
             pingIntervalMillis = 20_000
         }
     }
 
-    client.webSocket(request = {
-        url(buildWsUrl())
+    try {
+        client.webSocket(request = {
+            url(buildWsUrl())
 
-        header("Pragma", "no-cache")
-        header("Cache-Control", "no-cache")
-        header(
-            "User-Agent",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0"
-        )
-        header("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold")
-        header("Accept-Encoding", "gzip, deflate, br, zstd")
-        header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6")
-    }, block = run)
+            header("Pragma", "no-cache")
+            header("Cache-Control", "no-cache")
+            header(
+                "User-Agent",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0"
+            )
+            header("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold")
+            header("Accept-Encoding", "gzip, deflate, br, zstd")
+            header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6")
+        }, block = run)
+    } catch (e: Throwable) {
+        return Result.failure(Throwable("WebSocket connect fail: ${e.message}"))
+    }
 
     client.close()
+    return Result.success(Unit)
 }
 
 

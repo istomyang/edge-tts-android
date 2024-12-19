@@ -1,74 +1,81 @@
 package com.istomyang.edgetss.data
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.preferencesDataStore
+import androidx.room.ColumnInfo
+import androidx.room.Dao
+import androidx.room.Database
+import androidx.room.Entity
+import androidx.room.Insert
+import androidx.room.PrimaryKey
+import androidx.room.Query
 import androidx.room.Room
-import com.istomyang.edgetss.data.database.Log
-import com.istomyang.edgetss.data.database.LogDao
-import com.istomyang.edgetss.data.database.LogDatabase
+import androidx.room.RoomDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 
-class LogRepository(val dataSource: LogDataSource, val disabled: Boolean) {
-    suspend fun insert(domain: String, level: LogLevel, message: String) {
-        if (disabled) {
-            return
+val Context.dateStoreLog by preferencesDataStore("log")
+
+class LogRepository(
+    private val localDataSource: LogLocalDataSource,
+    private val preferenceDataSource: DataStore<Preferences>
+) {
+    val enabled = preferenceDataSource.data.map { it[KEY_ENABLED] == true }
+
+    suspend fun open(enabled: Boolean = true) {
+        preferenceDataSource.edit {
+            it[KEY_ENABLED] = enabled
         }
-        val log = Log(
-            domain = domain,
-            level = level.name,
-            message = message,
-            createdAt = timestampBefore(0, 0, 0)
-        )
-        dataSource.dao.inert(log)
     }
 
-    fun info(domain: String, message: String) = CoroutineScope(Dispatchers.IO).launch {
-        insert(domain = domain, level = LogLevel.INFO, message = message)
+    fun insert(domain: String, level: LogLevel, message: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            if (!enabled.first()) {
+                return@launch
+            }
+            val log = Log(
+                domain = domain,
+                level = level.name,
+                message = message,
+                createdAt = timestampBefore(0, 0, 0)
+            )
+            localDataSource.dao.inert(log)
+        }
     }
 
-    fun debug(domain: String, message: String) = CoroutineScope(Dispatchers.IO).launch {
-        insert(domain = domain, level = LogLevel.DEBUG, message = message)
-    }
+    fun info(domain: String, message: String) = insert(domain = domain, level = LogLevel.INFO, message = message)
 
-    fun error(domain: String, message: String) = CoroutineScope(Dispatchers.IO).launch {
-        insert(domain = domain, level = LogLevel.ERROR, message = message)
-    }
+    fun debug(domain: String, message: String) = insert(domain = domain, level = LogLevel.DEBUG, message = message)
 
-    fun warn(domain: String, message: String) = CoroutineScope(Dispatchers.IO).launch {
-        insert(domain = domain, level = LogLevel.WARNING, message = message)
-    }
+    fun error(domain: String, message: String) = insert(domain = domain, level = LogLevel.ERROR, message = message)
 
-    suspend fun query(
-        domain: String = "",
-        level: LogLevel = LogLevel.INFO,
-        afterAt: Long = timestampBefore(0, 0, 1),
-        o: Int,
-        l: Int
-    ): List<Log> {
-        return dataSource.dao.query(
-            domain, level.name, afterAt, o, l
-        )
-    }
+    fun warn(domain: String, message: String) = insert(domain = domain, level = LogLevel.WARNING, message = message)
 
-    suspend fun delete(
-        domain: String = "",
-        level: String = "",
-        beforeAt: Long
-    ) {
-        dataSource.dao.delete(domain, level, beforeAt)
+    suspend fun query(o: Int, l: Int) = localDataSource.dao.query(o, l)
+
+    suspend fun clear() {
+        localDataSource.dao.clear()
     }
 
     companion object {
-        fun create(context: Context, disabled: Boolean = false): LogRepository {
+        fun create(context: Context): LogRepository {
             val db = Room.databaseBuilder(
                 context,
                 LogDatabase::class.java,
                 "log"
             ).build()
-            return LogRepository(LogDataSource(db.logDao()), disabled)
+            val localDS = LogLocalDataSource(db.logDao())
+            val preferenceDS = context.dateStoreLog
+            return LogRepository(localDS, preferenceDS)
         }
 
         fun timestampBefore(min: Long, hour: Long, day: Long): Long {
@@ -76,10 +83,10 @@ class LogRepository(val dataSource: LogDataSource, val disabled: Boolean) {
             val targetDateTime = now.minusMinutes(min).minusHours(hour).minusDays(day)
             return targetDateTime.toInstant(ZoneOffset.UTC).toEpochMilli()
         }
+
+        private val KEY_ENABLED = booleanPreferencesKey("enabled")
     }
 }
-
-class LogDataSource(val dao: LogDao)
 
 enum class LogLevel {
     DEBUG,
@@ -87,3 +94,41 @@ enum class LogLevel {
     WARNING,
     ERROR
 }
+
+// region LogDataSource
+
+class LogLocalDataSource(val dao: LogDao)
+
+@Database(entities = [Log::class], version = 1, exportSchema = false)
+abstract class LogDatabase : RoomDatabase() {
+    abstract fun logDao(): LogDao
+}
+
+@Dao
+interface LogDao {
+    @Insert
+    suspend fun insertBatch(logs: List<Log>)
+
+    @Insert
+    suspend fun inert(log: Log)
+
+    @Query("SELECT * FROM log ORDER BY created_at ASC LIMIT :l OFFSET :o")
+    suspend fun query(
+        o: Int = 0,
+        l: Int = 100
+    ): List<Log>
+
+    @Query("DELETE FROM log")
+    suspend fun clear()
+}
+
+@Entity(tableName = "log", indices = [])
+data class Log(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @ColumnInfo(name = "domain") val domain: String,
+    @ColumnInfo(name = "level") val level: String,
+    @ColumnInfo(name = "message") val message: String,
+    @ColumnInfo(name = "created_at") val createdAt: Long // in ms
+)
+
+// endregion

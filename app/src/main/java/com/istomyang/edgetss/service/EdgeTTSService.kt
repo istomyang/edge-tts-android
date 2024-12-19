@@ -6,13 +6,11 @@ import android.speech.tts.SynthesisRequest
 import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeechService
 import com.istomyang.edgetss.data.LogRepository
-import com.istomyang.edgetss.data.PreferenceRepository
 import com.istomyang.edgetss.data.SpeakerRepository
 import com.istomyang.edgetss.engine.request
 import com.istomyang.edgetss.utils.mp3ToPcm
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
@@ -32,24 +30,17 @@ class EdgeTTSService : TextToSpeechService() {
     override fun onCreate() {
         super.onCreate()
 
-        val preferenceRepository = PreferenceRepository.create(this)
+        log = LogRepository.create(this)
         val speakerRepository = SpeakerRepository.create(this)
 
-        val that = this
-        CoroutineScope(Dispatchers.Default).launch {
-            preferenceRepository.logOpen.collect { it ->
-                val open = it == true
-                log = LogRepository.create(that, !open)
-            }
-        }
-
         CoroutineScope(Dispatchers.IO).launch {
-            preferenceRepository.activeSpeakerId.collectLatest { id ->
-                if (id == null) return@collectLatest
-                val speaker = speakerRepository.getById(id) ?: return@collectLatest
-                language = speaker.locale
-                voiceName = speaker.name
-                outputFormat = speaker.suggestedCodec
+            speakerRepository.getActiveFlow().collect { voice ->
+                if (voice == null) {
+                    return@collect
+                }
+                language = voice.locale
+                voiceName = voice.name
+                outputFormat = voice.suggestedCodec
                 prepared = true
             }
             log.info(DOMAIN, "Use speaker: $voiceName - $language - $outputFormat")
@@ -96,7 +87,7 @@ class EdgeTTSService : TextToSpeechService() {
             ).onSuccess { data ->
                 val kb = data.size.toDouble() / 1024.0
                 val t = System.currentTimeMillis() - t0
-                log.info(DOMAIN_SPEECH, "$text | ${kb}KB | ${t}ms")
+                log.info(DOMAIN_SPEECH, "$text | ${kb.toInt()}KB | ${t}ms")
 
                 val pcmData = mp3ToPcm(data)
                 sendAudioData(callback, pcmData).onFailure {

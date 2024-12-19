@@ -10,6 +10,7 @@ lifecycleRuntimeKtx = "2.6.1"
 activityCompose = "1.8.0"
 composeBom = "2024.04.01"
 lifecycleViewmodelCompose = "2.8.5"
+navigationComposeVersion = "2.8.4"
 preferenceVersion = "1.2.1"
 media3Exoplayer = "1.5.0"
 roomCompiler = "2.5.1"
@@ -17,6 +18,7 @@ roomVersion = "2.6.1"
 datastoreCoreAndroid = "1.1.1"
 datastoreCoreJvm = "1.1.1"
 constraintlayout = "2.2.0"
+lifecycleRuntimeComposeAndroid = "2.8.7"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -46,6 +48,8 @@ androidx-datastore-core-jvm = { group = "androidx.datastore", name = "datastore-
 material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 material3 = { module = "androidx.compose.material3:material3" }
 androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
+navigation-compose = { module = "androidx.navigation:navigation-compose", version.ref = "navigationComposeVersion" }
+androidx-lifecycle-runtime-compose-android = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose-android", version.ref = "lifecycleRuntimeComposeAndroid" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
