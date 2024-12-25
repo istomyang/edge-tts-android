@@ -1,6 +1,7 @@
 package com.istomyang.edgetss.data
 
 import android.content.Context
+import androidx.annotation.GuardedBy
 import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
@@ -14,13 +15,26 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.istomyang.edgetss.engine.listVoices
 import kotlinx.coroutines.flow.Flow
+import kotlin.reflect.KProperty
+
+val Context.repositorySpeaker by SpeakerRepositoryDelegate()
 
 class SpeakerRepository(
     private val localDS: SpeakerLocalDataSource,
     private val remoteDS: SpeakerRemoteDataSource,
 ) {
+    private lateinit var voices: List<Voice>
+
     suspend fun fetchAll(): Result<List<Voice>> {
-        return remoteDS.getAll()
+        if (::voices.isInitialized) {
+            return Result.success(voices)
+        }
+        val result = remoteDS.getAll()
+        if (result.isSuccess) {
+            voices = result.getOrNull()!!
+            return Result.success(voices)
+        }
+        return Result.failure(result.exceptionOrNull()!!)
     }
 
     suspend fun get(id: String): Voice? {
@@ -47,8 +61,12 @@ class SpeakerRepository(
         return localDS.dao.getFlow()
     }
 
-    suspend fun insert(voices: List<Voice>) {
-        localDS.dao.inserts(voices)
+    suspend fun insert(ids: Set<String>) {
+        if (!::voices.isInitialized) {
+            return
+        }
+        val save = voices.filter { it.uid in ids }
+        localDS.dao.inserts(save)
     }
 
     suspend fun delete(ids: Set<String>) {
@@ -65,6 +83,24 @@ class SpeakerRepository(
             val localDS = SpeakerLocalDataSource(db.voiceDao())
             val remoteDS = SpeakerRemoteDataSource()
             return SpeakerRepository(localDS, remoteDS)
+        }
+    }
+}
+
+class SpeakerRepositoryDelegate {
+    private val lock = Any()
+
+    @GuardedBy("lock")
+    @Volatile
+    private var instance: SpeakerRepository? = null
+
+    operator fun getValue(thisRef: Context, property: KProperty<*>): SpeakerRepository {
+        return instance ?: synchronized(lock) {
+            if (instance == null) {
+                val applicationContext = thisRef.applicationContext
+                instance = SpeakerRepository.create(applicationContext)
+            }
+            instance!!
         }
     }
 }

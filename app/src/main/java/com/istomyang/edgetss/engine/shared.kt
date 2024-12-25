@@ -18,6 +18,6 @@ internal fun genSecMsGec(): String {
     val hasher = MessageDigest.getInstance("SHA-256")
     hasher.update(str.toByteArray())
     val hash = hasher.digest()
-    val encoding = BigInteger(1, hash).toString(16).toUpperCase()
+    val encoding = BigInteger(1, hash).toString(16).uppercase()
     return encoding
 }

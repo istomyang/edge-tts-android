@@ -6,7 +6,8 @@ import android.speech.tts.SynthesisRequest
 import android.speech.tts.TextToSpeech
 import android.speech.tts.TextToSpeechService
 import com.istomyang.edgetss.data.LogRepository
-import com.istomyang.edgetss.data.SpeakerRepository
+import com.istomyang.edgetss.data.repositoryLog
+import com.istomyang.edgetss.data.repositorySpeaker
 import com.istomyang.edgetss.engine.request
 import com.istomyang.edgetss.utils.mp3ToPcm
 import kotlinx.coroutines.CoroutineScope
@@ -30,8 +31,9 @@ class EdgeTTSService : TextToSpeechService() {
     override fun onCreate() {
         super.onCreate()
 
-        log = LogRepository.create(this)
-        val speakerRepository = SpeakerRepository.create(this)
+        val context = this.applicationContext
+        log = context.repositoryLog
+        val speakerRepository = context.repositorySpeaker
 
         CoroutineScope(Dispatchers.IO).launch {
             speakerRepository.getActiveFlow().collect { voice ->

@@ -1,6 +1,5 @@
 package com.istomyang.edgetss.ui.main
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
@@ -8,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.istomyang.edgetss.data.LogRepository
+import com.istomyang.edgetss.data.repositoryLog
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,7 +20,6 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-
 
 class LogViewModel(
     val logRepository: LogRepository,
@@ -71,18 +70,10 @@ class LogViewModel(
     }
 
     companion object {
-        fun factory(context: Context): LogViewModel {
-            return LogViewModel(
-                LogRepository.create(context),
-            )
-        }
-
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val context = this[APPLICATION_KEY]!!.applicationContext
-                LogViewModel(
-                    LogRepository.create(context),
-                )
+                LogViewModel(context.repositoryLog)
             }
         }
     }

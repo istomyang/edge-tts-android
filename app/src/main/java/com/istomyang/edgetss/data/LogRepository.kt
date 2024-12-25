@@ -1,6 +1,7 @@
 package com.istomyang.edgetss.data
 
 import android.content.Context
+import androidx.annotation.GuardedBy
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -22,8 +23,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.ZoneOffset
+import kotlin.reflect.KProperty
 
-val Context.dateStoreLog by preferencesDataStore("log")
+val Context.repositoryLog by LogRepositoryDelegate()
 
 class LogRepository(
     private val localDataSource: LogLocalDataSource,
@@ -85,6 +87,26 @@ class LogRepository(
         }
 
         private val KEY_ENABLED = booleanPreferencesKey("enabled")
+    }
+}
+
+private val Context.dateStoreLog by preferencesDataStore("log")
+
+class LogRepositoryDelegate {
+    private val lock = Any()
+
+    @GuardedBy("lock")
+    @Volatile
+    private var instance: LogRepository? = null
+
+    operator fun getValue(thisRef: Context, property: KProperty<*>): LogRepository {
+        return instance ?: synchronized(lock) {
+            if (instance == null) {
+                val applicationContext = thisRef.applicationContext
+                instance = LogRepository.create(applicationContext)
+            }
+            instance!!
+        }
     }
 }
 
