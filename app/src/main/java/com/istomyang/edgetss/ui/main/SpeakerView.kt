@@ -57,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.istomyang.edgetss.ui.main.component.IconButton
@@ -188,9 +189,7 @@ private enum class ItemStatus {
 }
 
 @Composable
-private fun Item(
-    speaker: Speaker, status: ItemStatus, onSelected: (id: String) -> Unit,
-) {
+private fun Item(speaker: Speaker, status: ItemStatus, onSelected: (id: String) -> Unit) {
     var selected by remember { mutableStateOf(false) }
     var preMode by remember { mutableStateOf(status) }
 
@@ -231,7 +230,7 @@ private fun Item(
 
 // region SpeakerPicker
 
-data class Option(val title: String, val value: String)
+data class Option(val title: String, val value: String, val searchKey: String)
 
 @Composable
 private fun SpeakerPicker(
@@ -248,7 +247,7 @@ private fun SpeakerPicker(
         candidates = data
     }
 
-    Dialog(onDismissRequest = { onCancel() }) {
+    Dialog(onDismissRequest = { onCancel() }, properties = DialogProperties(usePlatformDefaultWidth = true)) {
         Card(
             modifier = modifier
                 .fillMaxWidth()
@@ -269,12 +268,15 @@ private fun SpeakerPicker(
                 HorizontalDivider()
 
                 TextField(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
                     singleLine = true,
                     value = search,
                     onValueChange = {
                         search = it
                         candidates = data.filter { v ->
-                            v.title.contains(search, ignoreCase = true)
+                            v.searchKey.contains(search, ignoreCase = true)
                         }
                     },
                     leadingIcon = {
@@ -359,6 +361,7 @@ private fun SpeakerPickerPreview() {
             Option(
                 title = "Microsoft Server Speech Text to Speech Voice (en-US, AvaMultilingualNeural) $it",
                 value = "speaker_$it",
+                searchKey = ""
             )
         }, onConfirm = { it ->
             Log.d("SpeakerPicker", "Confirm $it")

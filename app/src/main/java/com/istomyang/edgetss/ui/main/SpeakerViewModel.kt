@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.istomyang.edgetss.data.SpeakerRepository
 import com.istomyang.edgetss.data.Voice
+import com.istomyang.edgetss.data.repositorySpeaker
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,7 +35,6 @@ class SpeakerViewModel(
         initialValue = emptyList()
     )
 
-    private val voiceData = mutableListOf<Voice>()
     private val _voicesUiState = MutableStateFlow(emptyList<Option>())
     val voicesUiState: StateFlow<List<Option>> = _voicesUiState.asStateFlow()
 
@@ -44,9 +44,11 @@ class SpeakerViewModel(
     fun loadVoices() {
         viewModelScope.launch {
             speakerRepository.fetchAll().onSuccess { voices ->
-                voiceData.clear()
-                voiceData.addAll(voices)
-                _voicesUiState.update { voices.map { voice2Option(it) } }
+                _voicesUiState.update {
+                    voices.filter { voice ->
+                        !speakerUiState.value.any { voice.uid == it.id }
+                    }.map { voice2Option(it) }
+                }
             }.onFailure { e ->
                 _messageUiState.update { Message(e.localizedMessage ?: "", true) }
             }
@@ -54,9 +56,9 @@ class SpeakerViewModel(
     }
 
     fun addSpeakers(ids: List<String>) {
-        val voices = voiceData.filter { it.uid in ids && !speakerUiState.value.any { has -> it.uid == has.id } }
+        val ids = ids.filter { id -> !speakerUiState.value.any { it.id == id } }.toSet()
         viewModelScope.launch {
-            speakerRepository.insert(voices)
+            speakerRepository.insert(ids)
         }
     }
 
@@ -88,9 +90,7 @@ class SpeakerViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val context = this[APPLICATION_KEY]!!.applicationContext
-                SpeakerViewModel(
-                    SpeakerRepository.create(context)
-                )
+                SpeakerViewModel(context.repositorySpeaker)
             }
         }
     }
@@ -126,7 +126,9 @@ private fun voice2Option(voice: Voice): Option {
     val name = extractVoiceName(voice)
     val gender = voice.gender
     val description = voice.contentCategories
-    return Option("$name - $gender - $locale - $description", voice.name)
+    val title = "$name - $gender - $locale - $description"
+    val searchKey = title.replace("[^a-zA-Z]".toRegex(), "")
+    return Option(title, voice.name, searchKey)
 }
 
 // en-US-AvaMultilingualNeural 提取 AvaMultilingualNeural 删除 Neural
