@@ -2,6 +2,12 @@ package com.istomyang.edgetss.data
 
 import android.content.Context
 import androidx.annotation.GuardedBy
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
@@ -13,8 +19,11 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.istomyang.edgetss.engine.EdgeTTSOutputFormat
 import com.istomyang.edgetss.engine.listVoices
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlin.reflect.KProperty
 
 val Context.repositorySpeaker by SpeakerRepositoryDelegate()
@@ -22,6 +31,7 @@ val Context.repositorySpeaker by SpeakerRepositoryDelegate()
 class SpeakerRepository(
     private val localDS: SpeakerLocalDataSource,
     private val remoteDS: SpeakerRemoteDataSource,
+    private val preferenceDataSource: DataStore<Preferences>
 ) {
     private lateinit var voices: List<Voice>
 
@@ -73,6 +83,28 @@ class SpeakerRepository(
         localDS.dao.delete(ids)
     }
 
+    val fakeFlow = flowOf("")
+
+    fun audioFormat() = preferenceDataSource.data.map {
+        it[KEY_AUDIO_FORMAT] ?: EdgeTTSOutputFormat.Audio24Khz48KbitrateMonoMp3.value
+    }
+
+    suspend fun setAudioFormat(format: String) {
+        preferenceDataSource.edit {
+            it[KEY_AUDIO_FORMAT] = format
+        }
+    }
+
+    fun useFlow() = preferenceDataSource.data.map {
+        it[KEY_USE_FLOW] == true
+    }
+
+    suspend fun setUseFlow(b: Boolean) {
+        preferenceDataSource.edit {
+            it[KEY_USE_FLOW] = b
+        }
+    }
+
     companion object {
         fun create(context: Context): SpeakerRepository {
             val db = Room.databaseBuilder(
@@ -82,8 +114,12 @@ class SpeakerRepository(
             ).build()
             val localDS = SpeakerLocalDataSource(db.voiceDao())
             val remoteDS = SpeakerRemoteDataSource()
-            return SpeakerRepository(localDS, remoteDS)
+            val preferenceDataSource = context.dateStoreSpeakers
+            return SpeakerRepository(localDS, remoteDS, preferenceDataSource)
         }
+
+        private val KEY_AUDIO_FORMAT = stringPreferencesKey("audio-format")
+        private val KEY_USE_FLOW = booleanPreferencesKey("use-flow")
     }
 }
 
@@ -194,3 +230,7 @@ data class Voice(
 )
 
 // endregion
+
+
+private val Context.dateStoreSpeakers by preferencesDataStore("speakers")
+

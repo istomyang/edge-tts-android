@@ -2,7 +2,6 @@ package com.istomyang.edgetss.engine
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
-import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.client.request.header
@@ -12,7 +11,9 @@ import io.ktor.websocket.readBytes
 import io.ktor.websocket.readReason
 import io.ktor.websocket.readText
 import io.ktor.websocket.send
-import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import java.lang.Exception
 import java.nio.ByteBuffer
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
@@ -23,7 +24,7 @@ import java.util.Locale
 /**
  * Request a text to Microsoft using Edge browser's speech.
  */
-suspend fun request(
+fun request(
     lang: String,
     voice: String,
     pitch: String,
@@ -31,17 +32,31 @@ suspend fun request(
     volume: String,
     outputFormat: String,
     text: String
-): Result<ByteArray> {
+): Flow<ByteArray> = flow {
     // You can use a packet grabbing tool, like Charles,
     // to grab how the Edge browser handles audio read aloud
     // and you'll get the flow of operations.
 
     // The reason for Microsoft using websocket is that
     // the audio data is sent in a continuous stream.
-    val audio = ByteArrayOutputStream()
-    var err: Throwable? = null
 
-    val result = buildConnection {
+    val client = HttpClient(CIO) {
+        install(WebSockets)
+    }
+
+    client.webSocket(request = {
+        url(buildWsUrl())
+
+        header("Pragma", "no-cache")
+        header("Cache-Control", "no-cache")
+        header(
+            "User-Agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0"
+        )
+        header("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold")
+        header("Accept-Encoding", "gzip, deflate, br, zstd")
+        header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6")
+    }) {
         send(request1(outputFormat))
         send(request2(lang, voice, pitch, rate, volume, text))
 
@@ -50,7 +65,7 @@ suspend fun request(
                 is Frame.Text -> {
                     val data = message.readText()
                     if (data.contains("Path:turn.end")) {
-                        return@buildConnection
+                        return@webSocket
                     }
                 }
 
@@ -61,63 +76,23 @@ suspend fun request(
 
                     // Because AI generates Audio Token continuously,
                     // the client needs to accept a block of data continuously.
-                    audio.write(data.sliceArray(len + 2 until data.size))
+                    val audio = data.sliceArray(len + 2 until data.size)
+                    emit(audio)
                 }
 
                 is Frame.Close -> {
-                    err = Throwable("WebSocket Close: ${message.readReason()?.message}")
-                    return@buildConnection
+                    throw Exception("WebSocket Close: ${message.readReason()?.message}")
                 }
 
                 else -> {
-                    err = Throwable("Unexpected behavior: $message")
-                    return@buildConnection
+                    throw Exception("Unexpected behavior: $message")
                 }
             }
-
         }
-    }
-
-    if (result.isFailure) {
-        return Result.failure(result.exceptionOrNull()!!)
-    }
-
-    if (err != null) {
-        return Result.failure(err)
-    }
-    return Result.success(audio.toByteArray())
-}
-
-
-private suspend fun buildConnection(run: suspend DefaultClientWebSocketSession.() -> Unit): Result<Unit> {
-    val client = HttpClient(CIO) {
-        install(WebSockets) {
-            pingIntervalMillis = 20_000
-        }
-    }
-
-    try {
-        client.webSocket(request = {
-            url(buildWsUrl())
-
-            header("Pragma", "no-cache")
-            header("Cache-Control", "no-cache")
-            header(
-                "User-Agent",
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0"
-            )
-            header("Origin", "chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold")
-            header("Accept-Encoding", "gzip, deflate, br, zstd")
-            header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6")
-        }, block = run)
-    } catch (e: Throwable) {
-        return Result.failure(Throwable("WebSocket connect fail: ${e.message}"))
     }
 
     client.close()
-    return Result.success(Unit)
 }
-
 
 private fun request1(outputFormat: String): String {
     val builder = StringBuilder()

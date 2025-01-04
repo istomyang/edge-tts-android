@@ -14,7 +14,7 @@ android {
         minSdk = 29
         targetSdk = 34
         versionCode = 1
-        versionName = "1.3.0"
+        versionName = "1.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -33,12 +33,12 @@ android {
             )
             signingConfig = signingConfigs.getByName("debug")
         }
+        create("prerelease") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".prerelease"
+        }
         debug {
             applicationIdSuffix = ".debug"
-        }
-        create("debug-beta") {
-            initWith(getByName("debug"))
-            applicationIdSuffix = ".deug.beta"
         }
     }
     compileOptions {

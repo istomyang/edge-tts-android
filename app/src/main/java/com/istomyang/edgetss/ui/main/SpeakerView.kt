@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.RecentActors
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -60,6 +63,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.istomyang.edgetss.engine.EdgeTTSOutputFormat
 import com.istomyang.edgetss.ui.main.component.IconButton
 import kotlinx.coroutines.launch
 
@@ -78,10 +82,13 @@ private fun SpeakerContentView(openDrawer: () -> Unit) {
     val speakers by viewModel.speakerUiState.collectAsStateWithLifecycle()
     val voices by viewModel.voicesUiState.collectAsStateWithLifecycle()
     val message by viewModel.messageUiState.collectAsStateWithLifecycle()
+    val settings by viewModel.settingsUiState.collectAsStateWithLifecycle()
 
     var openPicker by remember { mutableStateOf(false) }
     var editMode by remember { mutableStateOf(false) }
     val editItems = remember { mutableStateListOf<String>() } // id
+
+    var openSetting by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val snackBarHostState = remember { SnackbarHostState() }
@@ -125,6 +132,9 @@ private fun SpeakerContentView(openDrawer: () -> Unit) {
                         }
                     }
                     false -> {
+                        IconButton("Open Settings", Icons.Filled.Settings) {
+                            openSetting = true
+                        }
                         IconButton("Add Items", Icons.Filled.Add) {
                             openPicker = true
                             viewModel.loadVoices()
@@ -174,9 +184,23 @@ private fun SpeakerContentView(openDrawer: () -> Unit) {
             }
         )
     }
+
+    if (openSetting) {
+        Settings(
+            defaultValue = settings,
+            onConfirm = {
+                openSetting = false
+                viewModel.setAudioFormat(it.format)
+                viewModel.setUseFlow(it.useFlow)
+            },
+            onCancel = {
+                openSetting = false
+            }
+        )
+    }
 }
 
-@Preview(showBackground = true)
+//@Preview(showBackground = true)
 @Composable
 private fun ContentViewPreview() {
     SpeakerContentView {}
@@ -364,7 +388,7 @@ private fun SpeakerPicker(
 }
 
 
-@Preview(showBackground = true)
+//@Preview(showBackground = true)
 @Composable
 private fun SpeakerPickerPreview() {
     SpeakerPicker(
@@ -378,6 +402,146 @@ private fun SpeakerPickerPreview() {
             Log.d("SpeakerPicker", "Confirm $it")
         }, onCancel = {}
     )
+}
+
+// endregion
+
+// region Setting
+
+
+data class SettingsData(
+    val format: String,
+    val useFlow: Boolean
+)
+
+@Composable
+private fun Settings(
+    modifier: Modifier = Modifier,
+    defaultValue: SettingsData,
+    onConfirm: (SettingsData) -> Unit,
+    onCancel: () -> Unit = {},
+) {
+    var format by remember { mutableStateOf(defaultValue.format) }
+    var useFlow by remember { mutableStateOf(defaultValue.useFlow) }
+
+    Dialog(onDismissRequest = { onCancel() }, properties = DialogProperties(usePlatformDefaultWidth = true)) {
+        Card(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Setting",
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+                HorizontalDivider()
+
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)) {
+                    Text(
+                        "TTS Audio Format",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    listOf(
+                        EdgeTTSOutputFormat.Audio24Khz48KbitrateMonoMp3,
+                        EdgeTTSOutputFormat.Audio24Khz96KbitrateMonoMp3,
+                        EdgeTTSOutputFormat.Webm24Khz16BitMonoOpus,
+                    ).forEach {
+                        val value = it.value
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    enabled = true,
+                                    onClick = {
+                                        format = value
+                                    }
+                                )
+                                .padding(horizontal = 10.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = value == format,
+                                onCheckedChange = null
+                            )
+                            Text(
+                                text = value,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Use Flow",
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                text = "Start playing audio after a while of downloading data.",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier
+                                    .width(200.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1.0f))
+                        Switch(
+                            modifier = Modifier
+                                .padding(start = 5.dp),
+                            checked = useFlow,
+                            onCheckedChange = { useFlow = it })
+                    }
+                }
+
+                HorizontalDivider()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Spacer(modifier = Modifier.weight(1.0f))
+
+                    TextButton(
+                        onClick = { onCancel() },
+                        modifier = Modifier.padding(8.dp),
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    TextButton(
+                        onClick = {
+                            val data = SettingsData(
+                                format = format,
+                                useFlow = useFlow
+                            )
+                            onConfirm(data)
+                        },
+                        modifier = Modifier.padding(8.dp),
+                    ) {
+                        Text("Confirm")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun SettingPreview() {
+    Settings(defaultValue = SettingsData("", false), onConfirm = {}, onCancel = {})
 }
 
 // endregion

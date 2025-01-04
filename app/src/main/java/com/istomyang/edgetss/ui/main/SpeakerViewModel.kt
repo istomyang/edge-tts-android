@@ -55,6 +55,7 @@ class SpeakerViewModel(
         }
     }
 
+
     fun addSpeakers(ids: List<String>) {
         val ids = ids.filter { id -> !speakerUiState.value.any { it.id == id } }.toSet()
         viewModelScope.launch {
@@ -78,6 +79,29 @@ class SpeakerViewModel(
         viewModelScope.launch {
             speakerRepository.removeActive()
             speakerRepository.setActive(id)
+        }
+    }
+
+    val settingsUiState: StateFlow<SettingsData> = combine(
+        speakerRepository.audioFormat(),
+        speakerRepository.useFlow(),
+    ) { format, useFlow ->
+        SettingsData(format, useFlow)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(),
+        initialValue = SettingsData("", false)
+    )
+
+    fun setAudioFormat(format: String) {
+        viewModelScope.launch {
+            speakerRepository.setAudioFormat(format)
+        }
+    }
+
+    fun setUseFlow(b: Boolean) {
+        viewModelScope.launch {
+            speakerRepository.setUseFlow(b)
         }
     }
 

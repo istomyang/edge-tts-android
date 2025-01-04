@@ -4,12 +4,14 @@ import android.media.MediaCodec
 import android.media.MediaDataSource
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import kotlinx.coroutines.delay
+import java.io.ByteArrayOutputStream
 
-fun mp3ToPcm(mp3Data: ByteArray): ByteArray {
-    val pcmData = mutableListOf<Byte>()
+suspend fun intoPcm(mp3Data: ByteArray): ByteArray {
+    val pcmData = ByteArrayOutputStream()
 
     val extractor = MediaExtractor()
-    extractor.setDataSource(DataSource(mp3Data))
+    extractor.setDataSource(ByteArrayDataSource(mp3Data))
 
     var audioTrackIndex = -1
     val numTracks = extractor.trackCount
@@ -23,8 +25,10 @@ fun mp3ToPcm(mp3Data: ByteArray): ByteArray {
     }
 
     if (audioTrackIndex == -1) {
-        throw RuntimeException("No audio track found in the MP3 file.")
+        throw Throwable("No audio track found in the MP3 file.")
     }
+
+    extractor.selectTrack(audioTrackIndex)
 
     val format = extractor.getTrackFormat(audioTrackIndex)
     val mimeType = format.getString(MediaFormat.KEY_MIME)
@@ -32,44 +36,52 @@ fun mp3ToPcm(mp3Data: ByteArray): ByteArray {
     codec.configure(format, null, null, 0)
     codec.start()
 
-    extractor.selectTrack(audioTrackIndex)
+    val info = MediaCodec.BufferInfo()
+    var inputEOF = false
+    var outputWait = 0 // wait codec handle all data.
 
-    // Decode the MP3 data to PCM
     while (true) {
         val inputIndex = codec.dequeueInputBuffer(10_000)
-        if (inputIndex >= 0) {
+        if (inputIndex >= 0 && !inputEOF) {
             val buffer = codec.getInputBuffer(inputIndex)
             buffer?.clear()
             val sampleSize = extractor.readSampleData(buffer!!, 0)
             if (sampleSize < 0) {
+                inputEOF = true
                 codec.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                break
             } else {
                 codec.queueInputBuffer(inputIndex, 0, sampleSize, extractor.sampleTime, 0)
                 extractor.advance()
             }
         }
 
-        val bufferInfo = MediaCodec.BufferInfo()
-        val outputIndex = codec.dequeueOutputBuffer(bufferInfo, 10_000)
+        val outputIndex = codec.dequeueOutputBuffer(info, 10_000)
         if (outputIndex >= 0) {
             val output = codec.getOutputBuffer(outputIndex)
             output?.let {
-                val pcmByteArray = ByteArray(bufferInfo.size)
-                it.get(pcmByteArray)
-                pcmData.addAll(pcmByteArray.toList())
+                val dest = ByteArray(info.size)
+                it.get(dest)
+                pcmData.write(dest)
             }
             codec.releaseOutputBuffer(outputIndex, false)
+        } else if (outputIndex == MediaCodec.INFO_TRY_AGAIN_LATER && inputEOF) {
+            if (outputWait < 2) { // maybe codec is running.
+                outputWait += 1
+                delay(100)
+                continue
+            }
+            break
         }
     }
 
     codec.stop()
     codec.release()
+    extractor.release()
 
     return pcmData.toByteArray()
 }
 
-private class DataSource(private val data: ByteArray) : MediaDataSource() {
+private class ByteArrayDataSource(private val data: ByteArray) : MediaDataSource() {
     override fun close() {}
 
     override fun readAt(position: Long, buffer: ByteArray?, offset: Int, size: Int): Int {
