@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -84,24 +85,18 @@ class SpeakerViewModel(
 
     val settingsUiState: StateFlow<SettingsData> = combine(
         speakerRepository.audioFormat(),
-        speakerRepository.useFlow(),
-    ) { format, useFlow ->
-        SettingsData(format, useFlow)
+        flowOf("")
+    ) { format, a ->
+        SettingsData(format)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(),
-        initialValue = SettingsData("", false)
+        initialValue = SettingsData("")
     )
 
     fun setAudioFormat(format: String) {
         viewModelScope.launch {
             speakerRepository.setAudioFormat(format)
-        }
-    }
-
-    fun setUseFlow(b: Boolean) {
-        viewModelScope.launch {
-            speakerRepository.setUseFlow(b)
         }
     }
 

@@ -14,7 +14,7 @@ android {
         minSdk = 29
         targetSdk = 34
         versionCode = 1
-        versionName = "1.4.0"
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -22,8 +22,11 @@ android {
         }
     }
 
+
+
     buildTypes {
         release {
+            resValue("string", "app_name", "Edge TSS")
             applicationIdSuffix = ".release"
             isShrinkResources = true
             isMinifyEnabled = true
@@ -35,9 +38,11 @@ android {
         }
         create("prerelease") {
             initWith(getByName("release"))
+            resValue("string", "app_name", "Edge TSS β")
             applicationIdSuffix = ".prerelease"
         }
         debug {
+            resValue("string", "app_name", "Edge TSS α")
             applicationIdSuffix = ".debug"
         }
     }
@@ -67,12 +72,13 @@ composeCompiler {
 }
 
 dependencies {
+    implementation(project(":engine"))
+
+    implementation(libs.junit.junit)
     val ktorVersion = "3.0.2"
     implementation("io.ktor:ktor-client-core:$ktorVersion")
     implementation("io.ktor:ktor-client-cio:$ktorVersion")
     implementation("io.ktor:ktor-client-websockets:$ktorVersion")
-    implementation("io.ktor:ktor-client-content-negotiation:$ktorVersion")
-    implementation("io.ktor:ktor-serialization-gson:$ktorVersion")
 
     implementation(libs.androidx.room.room.runtime2)
     implementation(libs.androidx.room.ktx)

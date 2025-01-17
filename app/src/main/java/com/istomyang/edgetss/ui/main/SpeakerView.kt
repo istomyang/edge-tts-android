@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,7 +40,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -63,8 +61,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.istomyang.edgetss.engine.EdgeTTSOutputFormat
 import com.istomyang.edgetss.ui.main.component.IconButton
+import com.istomyang.tts_engine.SpeakerManager
 import kotlinx.coroutines.launch
 
 /**
@@ -191,7 +189,6 @@ private fun SpeakerContentView(openDrawer: () -> Unit) {
             onConfirm = {
                 openSetting = false
                 viewModel.setAudioFormat(it.format)
-                viewModel.setUseFlow(it.useFlow)
             },
             onCancel = {
                 openSetting = false
@@ -411,7 +408,6 @@ private fun SpeakerPickerPreview() {
 
 data class SettingsData(
     val format: String,
-    val useFlow: Boolean
 )
 
 @Composable
@@ -422,7 +418,6 @@ private fun Settings(
     onCancel: () -> Unit = {},
 ) {
     var format by remember { mutableStateOf(defaultValue.format) }
-    var useFlow by remember { mutableStateOf(defaultValue.useFlow) }
 
     Dialog(onDismissRequest = { onCancel() }, properties = DialogProperties(usePlatformDefaultWidth = true)) {
         Card(
@@ -448,10 +443,11 @@ private fun Settings(
                         style = MaterialTheme.typography.titleMedium
                     )
 
+
                     listOf(
-                        EdgeTTSOutputFormat.Audio24Khz48KbitrateMonoMp3,
-                        EdgeTTSOutputFormat.Audio24Khz96KbitrateMonoMp3,
-                        EdgeTTSOutputFormat.Webm24Khz16BitMonoOpus,
+                        SpeakerManager.OutputFormat.Audio24Khz48KbitrateMonoMp3,
+                        SpeakerManager.OutputFormat.Audio24Khz96KbitrateMonoMp3,
+                        SpeakerManager.OutputFormat.Webm24Khz16BitMonoOpus,
                     ).forEach {
                         val value = it.value
                         Row(
@@ -478,31 +474,31 @@ private fun Settings(
                         }
                     }
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Use Flow",
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            Text(
-                                text = "Start playing audio after a while of downloading data.",
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier
-                                    .width(200.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.weight(1.0f))
-                        Switch(
-                            modifier = Modifier
-                                .padding(start = 5.dp),
-                            checked = useFlow,
-                            onCheckedChange = { useFlow = it })
-                    }
+//                    Row(
+//                        modifier = Modifier
+//                            .fillMaxWidth()
+//                            .padding(top = 16.dp),
+//                        verticalAlignment = Alignment.CenterVertically
+//                    ) {
+//                        Column {
+//                            Text(
+//                                text = "Use Flow",
+//                                style = MaterialTheme.typography.titleMedium,
+//                            )
+//                            Text(
+//                                text = "Start playing audio after a while of downloading data.",
+//                                style = MaterialTheme.typography.bodySmall,
+//                                modifier = Modifier
+//                                    .width(200.dp)
+//                            )
+//                        }
+//                        Spacer(modifier = Modifier.weight(1.0f))
+//                        Switch(
+//                            modifier = Modifier
+//                                .padding(start = 5.dp),
+//                            checked = useFlow,
+//                            onCheckedChange = { useFlow = it })
+//                    }
                 }
 
                 HorizontalDivider()
@@ -524,7 +520,6 @@ private fun Settings(
                         onClick = {
                             val data = SettingsData(
                                 format = format,
-                                useFlow = useFlow
                             )
                             onConfirm(data)
                         },
@@ -541,7 +536,7 @@ private fun Settings(
 @Preview(showBackground = true)
 @Composable
 private fun SettingPreview() {
-    Settings(defaultValue = SettingsData("", false), onConfirm = {}, onCancel = {})
+    Settings(defaultValue = SettingsData(""), onConfirm = {}, onCancel = {})
 }
 
 // endregion

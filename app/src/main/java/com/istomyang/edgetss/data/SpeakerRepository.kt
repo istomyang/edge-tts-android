@@ -19,11 +19,12 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.istomyang.edgetss.engine.EdgeTTSOutputFormat
-import com.istomyang.edgetss.engine.listVoices
+import com.istomyang.tts_engine.SpeakerManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlin.reflect.KProperty
 
 val Context.repositorySpeaker by SpeakerRepositoryDelegate()
@@ -83,25 +84,13 @@ class SpeakerRepository(
         localDS.dao.delete(ids)
     }
 
-    val fakeFlow = flowOf("")
-
     fun audioFormat() = preferenceDataSource.data.map {
-        it[KEY_AUDIO_FORMAT] ?: EdgeTTSOutputFormat.Audio24Khz48KbitrateMonoMp3.value
+        it[KEY_AUDIO_FORMAT] ?: SpeakerManager.OutputFormat.Audio24Khz48KbitrateMonoMp3.value
     }
 
     suspend fun setAudioFormat(format: String) {
         preferenceDataSource.edit {
             it[KEY_AUDIO_FORMAT] = format
-        }
-    }
-
-    fun useFlow() = preferenceDataSource.data.map {
-        it[KEY_USE_FLOW] == true
-    }
-
-    suspend fun setUseFlow(b: Boolean) {
-        preferenceDataSource.edit {
-            it[KEY_USE_FLOW] = b
         }
     }
 
@@ -114,12 +103,21 @@ class SpeakerRepository(
             ).build()
             val localDS = SpeakerLocalDataSource(db.voiceDao())
             val remoteDS = SpeakerRemoteDataSource()
-            val preferenceDataSource = context.dateStoreSpeakers
-            return SpeakerRepository(localDS, remoteDS, preferenceDataSource)
+            val preferenceDS = context.dateStoreSpeakers
+            cleanPreviousVersion(preferenceDS)
+            return SpeakerRepository(localDS, remoteDS, preferenceDS)
+        }
+
+        private fun cleanPreviousVersion(ds: DataStore<Preferences>) {
+            CoroutineScope(Dispatchers.IO).launch {
+                val k1 = booleanPreferencesKey("use-flow")
+                ds.edit {
+                    it.remove(k1)
+                }
+            }
         }
 
         private val KEY_AUDIO_FORMAT = stringPreferencesKey("audio-format")
-        private val KEY_USE_FLOW = booleanPreferencesKey("use-flow")
     }
 }
 
@@ -145,7 +143,7 @@ class SpeakerRepositoryDelegate {
 
 class SpeakerRemoteDataSource {
     suspend fun getAll(): Result<List<Voice>> {
-        listVoices().onSuccess { items ->
+        SpeakerManager().list().onSuccess { items ->
             val ret = items.map { it ->
                 Voice(
                     uid = it.name,

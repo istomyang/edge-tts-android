@@ -60,9 +60,9 @@ class LogRepository(
 
     fun error(domain: String, message: String) = insert(domain = domain, level = LogLevel.ERROR, message = message)
 
-    fun warn(domain: String, message: String) = insert(domain = domain, level = LogLevel.WARNING, message = message)
+    suspend fun query(levels: List<String>, o: Int, l: Int) = localDataSource.dao.query(levels, o, l)
 
-    suspend fun query(o: Int, l: Int) = localDataSource.dao.query(o, l)
+    suspend fun queryAll(levels: List<String>) = localDataSource.dao.queryAll(levels)
 
     suspend fun clear() {
         localDataSource.dao.clear()
@@ -113,7 +113,6 @@ class LogRepositoryDelegate {
 enum class LogLevel {
     DEBUG,
     INFO,
-    WARNING,
     ERROR
 }
 
@@ -134,10 +133,16 @@ interface LogDao {
     @Insert
     suspend fun inert(log: Log)
 
-    @Query("SELECT * FROM log ORDER BY created_at ASC LIMIT :l OFFSET :o")
+    @Query("SELECT * FROM log WHERE level IN (:levels) ORDER BY created_at ASC LIMIT :l OFFSET :o")
     suspend fun query(
+        levels: List<String>,
         o: Int = 0,
         l: Int = 100
+    ): List<Log>
+
+    @Query("SELECT * FROM log WHERE level IN (:levels) ORDER BY created_at ASC")
+    suspend fun queryAll(
+        levels: List<String>,
     ): List<Log>
 
     @Query("DELETE FROM log")

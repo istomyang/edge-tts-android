@@ -12,10 +12,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.ToggleOff
 import androidx.compose.material.icons.filled.ToggleOn
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -25,13 +28,16 @@ import androidx.compose.material3.TopAppBarDefaults.topAppBarColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.istomyang.edgetss.data.LogLevel
 import com.istomyang.edgetss.ui.main.component.IconButton
-import kotlinx.coroutines.delay
 
 /**
  * LogScreen is a top level [Screen] config for [MainContent].
@@ -49,10 +55,8 @@ private fun LogContentView(openDrawer: () -> Unit) {
     val logOpened by viewModel.logOpened.collectAsStateWithLifecycle()
 
     LaunchedEffect(UInt) {
-        while (true) {
-            viewModel.loadLog()
-            delay(500)
-        }
+        viewModel.loadLogs()
+        viewModel.collectLogs()
     }
 
     Scaffold(
@@ -79,6 +83,16 @@ private fun LogContentView(openDrawer: () -> Unit) {
                 actions = {
                     IconButton("Clear", Icons.Default.CleaningServices) {
                         viewModel.clearLog()
+                    }
+                    FilterView(
+                        options = listOf(
+                            MenuOption("All", "all"),
+                            MenuOption("Info", LogLevel.INFO.name),
+                            MenuOption("Debug", LogLevel.DEBUG.name),
+                            MenuOption("Error", LogLevel.ERROR.name),
+                        )
+                    ) {
+                        viewModel.setLogLevel(it.value)
                     }
                 }
             )
@@ -141,3 +155,32 @@ private fun LogViewerPreview() {
         LogViewer(lines = lines)
     }
 }
+
+@Composable
+private fun FilterView(
+    options: List<MenuOption>,
+    onSelected: (MenuOption) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column {
+        IconButton("Level", Icons.Default.FilterAlt) {
+            expanded = !expanded
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(text = option.title) },
+                    onClick = {
+                        onSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+private data class MenuOption(val title: String, val value: String)

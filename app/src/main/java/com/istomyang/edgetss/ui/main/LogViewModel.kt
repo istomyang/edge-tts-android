@@ -6,9 +6,12 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.istomyang.edgetss.data.Log
+import com.istomyang.edgetss.data.LogLevel
 import com.istomyang.edgetss.data.LogRepository
 import com.istomyang.edgetss.data.repositoryLog
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,12 +31,44 @@ class LogViewModel(
     private val _linesUiState = MutableStateFlow(emptyList<String>())
     val linesUiState: StateFlow<List<String>> = _linesUiState.asStateFlow()
 
-    fun loadLog() {
+    private val logLevel = MutableStateFlow("all")
+
+    fun loadLogs() {
         viewModelScope.launch {
-            val o = _linesUiState.value.count()
-            val data = logRepository.query(o, 50)
-            _linesUiState.update { it + data.map { log -> "${ts2DateTime(log.createdAt)} ${log.level} ${log.domain}: ${log.message}" } }
+            val levels = getLevels()
+            val data = logRepository.queryAll(levels)
+            updateLines(data)
         }
+    }
+
+    fun collectLogs() {
+        viewModelScope.launch {
+            while (true) {
+                delay(1000)
+                val o = _linesUiState.value.count()
+                val levels = getLevels()
+                val data = logRepository.query(levels, o, 50)
+                updateLines(data)
+            }
+        }
+    }
+
+    private fun getLevels(): List<String> {
+        return if (logLevel.value == "all") {
+            listOf(LogLevel.INFO.name, LogLevel.DEBUG.name, LogLevel.ERROR.name)
+        } else {
+            listOf(logLevel.value)
+        }
+    }
+
+    private fun updateLines(newLines: List<Log>) {
+        _linesUiState.update { it + newLines.map { log -> "${ts2DateTime(log.createdAt)} ${log.level} ${log.domain}: ${log.message}" } }
+    }
+
+    fun setLogLevel(level: String) {
+        logLevel.value = level
+        _linesUiState.update { emptyList() } // clear screen.
+        loadLogs()
     }
 
     fun openLog(b: Boolean) {

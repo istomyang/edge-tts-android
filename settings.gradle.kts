@@ -33,3 +33,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "EdgeTSS"
 include(":app")
+include(":engine")
