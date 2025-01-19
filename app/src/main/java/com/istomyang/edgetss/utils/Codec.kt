@@ -91,15 +91,13 @@ class Codec(val source: Flow<Frame>) {
         codec.start()
 
         val info = MediaCodec.BufferInfo()
-        var outputWait = 0
         var inputEOF = false
 
         while (true) {
-            val inputIndex = codec.dequeueInputBuffer(10_000)
+            val inputIndex = codec.dequeueInputBuffer(100_000) // wait 100ms is enough.
             if (inputIndex >= 0 && !inputEOF) {
                 val buffer = codec.getInputBuffer(inputIndex)
-                val sampleSize = extractor.readSampleData(buffer!!, 0)
-                when (sampleSize) {
+                when (val sampleSize = extractor.readSampleData(buffer!!, 0)) {
                     -1 -> {
                         inputEOF = true // eof = sampleSize < 0 and srcLoaded.
                         codec.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
@@ -112,7 +110,7 @@ class Codec(val source: Flow<Frame>) {
                 }
             }
 
-            val outputIndex = codec.dequeueOutputBuffer(info, 10_000)
+            val outputIndex = codec.dequeueOutputBuffer(info, 200_000)
             if (outputIndex >= 0) {
                 val output = codec.getOutputBuffer(outputIndex)
                 if (output != null) {
@@ -122,11 +120,7 @@ class Codec(val source: Flow<Frame>) {
                 }
                 codec.releaseOutputBuffer(outputIndex, false)
             } else if (outputIndex == MediaCodec.INFO_TRY_AGAIN_LATER && inputEOF) {
-                if (outputWait < 3) { // maybe codec is running.
-                    outputWait += 1
-                    delay(100)
-                    continue
-                }
+                // wait 200ms is enough for codec to decode any pending data.
                 break
             }
         }
@@ -193,7 +187,7 @@ class Codec(val source: Flow<Frame>) {
      * ByteBuffer2 is better than List<ByteBuffer> as backing array.
      * See BufferUnitTest.kt
      */
-    private class ByteBuffer2() {
+    private class ByteBuffer2 {
         private var cap = 1024 * 100 // 100KB
         private var buffer = ByteBuffer.allocate(cap)
 
