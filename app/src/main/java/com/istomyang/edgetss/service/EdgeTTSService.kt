@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlin.String
 
 class EdgeTTSService : TextToSpeechService() {
     companion object {
@@ -70,14 +69,14 @@ class EdgeTTSService : TextToSpeechService() {
     }
 
     override fun onDestroy() {
+        runBlocking {
+            engine.close()
+        }
         scope.cancel()
         super.onDestroy()
     }
 
     override fun onStop() {
-        runBlocking {
-            engine.close()
-        }
     }
 
     private suspend fun collectConfig() {
