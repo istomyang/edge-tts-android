@@ -77,6 +77,12 @@ class LogViewModel(
         }
     }
 
+    fun openDebugLog(b: Boolean) {
+        viewModelScope.launch {
+            logRepository.openDebug(b)
+        }
+    }
+
     fun clearLog() {
         viewModelScope.launch {
             _linesUiState.update { emptyList() }
@@ -85,6 +91,12 @@ class LogViewModel(
     }
 
     val logOpened: StateFlow<Boolean> = logRepository.enabled.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(),
+        initialValue = false
+    )
+
+    val logDebugOpened: StateFlow<Boolean> = logRepository.enabledDebug.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(),
         initialValue = false

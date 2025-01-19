@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 
 @Composable
-fun IconButton(
+fun IconButton2(
     name: String,
     icon: ImageVector,
     modifier: Modifier = Modifier,

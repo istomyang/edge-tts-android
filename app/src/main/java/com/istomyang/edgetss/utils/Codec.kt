@@ -17,8 +17,8 @@ import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
 import kotlin.coroutines.CoroutineContext
 
-class Codec(val source: Flow<Frame>) {
-    data class Frame(val data: ByteArray?, val endOfFrame: Boolean = false)
+class Codec(private val source: Flow<Frame>) {
+    class Frame(val data: ByteArray?, val endOfFrame: Boolean = false)
 
     fun run(context: CoroutineContext): Flow<Frame> = flow {
         val dataChannel = Channel<Flow<ByteArray>>(8)
@@ -90,19 +90,14 @@ class Codec(val source: Flow<Frame>) {
         codec.configure(format, null, null, 0)
         codec.start()
 
-        val info = MediaCodec.BufferInfo()
-        var inputEOF = false
-
         while (true) {
             val inputIndex = codec.dequeueInputBuffer(100_000) // wait 100ms is enough.
-            if (inputIndex >= 0 && !inputEOF) {
+            if (inputIndex >= 0) {
                 val buffer = codec.getInputBuffer(inputIndex)
                 when (val sampleSize = extractor.readSampleData(buffer!!, 0)) {
                     -1 -> {
-                        inputEOF = true // eof = sampleSize < 0 and srcLoaded.
                         codec.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                     }
-
                     else -> {
                         codec.queueInputBuffer(inputIndex, 0, sampleSize, extractor.sampleTime, 0)
                         extractor.advance()
@@ -110,6 +105,7 @@ class Codec(val source: Flow<Frame>) {
                 }
             }
 
+            val info = MediaCodec.BufferInfo()
             val outputIndex = codec.dequeueOutputBuffer(info, 200_000)
             if (outputIndex >= 0) {
                 val output = codec.getOutputBuffer(outputIndex)
@@ -119,7 +115,7 @@ class Codec(val source: Flow<Frame>) {
                     emit(dest)
                 }
                 codec.releaseOutputBuffer(outputIndex, false)
-            } else if (outputIndex == MediaCodec.INFO_TRY_AGAIN_LATER && inputEOF) {
+            } else if (outputIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
                 // wait 200ms is enough for codec to decode any pending data.
                 break
             }

@@ -9,6 +9,7 @@ import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
 import io.ktor.client.request.request
 import io.ktor.client.request.url
+import io.ktor.util.decodeString
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
 import io.ktor.websocket.readBytes
@@ -20,11 +21,11 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.consumeAsFlow
+import java.nio.ByteBuffer
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.String
 
 class TTS {
     private val resultChannel = Channel<AudioFrame>(8)
@@ -91,23 +92,16 @@ class TTS {
         if (metadata.invalid()) {
             throw Exception("Voice is invalid.")
         }
+        if (text.invalid()) {
+            throw Exception("Text is invalid.")
+        }
         currentMetadata = metadata
 
         val chunkSize = estimateTextLength(metadata)
-        val textBytes = text.toByteArray(Charsets.UTF_8)
-        var count = 0
-        while (true) {
-            val size = minOf(chunkSize, textBytes.size - count)
-            if (size > 0) {
-                val chunk = textBytes.sliceArray(count until count + size)
-                val text = String(chunk, Charsets.UTF_8)
-                chunkChannel.send(text)
-            } else {
-                chunkChannel.send(null)
-                break
-            }
-            count += size
+        for (chunk in text.removeEmojis().trim().escapeXml().intoChunks(chunkSize)) {
+            chunkChannel.send(chunk)
         }
+        chunkChannel.send(null)
     }
 
     /**
@@ -210,13 +204,13 @@ class TTS {
         val tplSize = """
             X-RequestId:84dcbd2ef9591c28db9435451ea447c0
             Content-Type:application/ssml+xml
-            X-Timestamp:Fri Jan 17 2025 13:22:44 GMT+0800 (中国标准时间)Z
+            X-Timestamp:Fri Jan 17 2025 13:22:44 GMT+0000 (Coordinated Universal Time)
             Path:ssml
 
             <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="$lang"><voice name="$voice"><prosody pitch="$pitch" rate="$rate" volume="$volume"></prosody></voice></speak>
         """.trimIndent().replace("\n", "\r\n").toByteArray(Charsets.UTF_8).size
         val wsMsgSize = 2 shl 16
-        return wsMsgSize - tplSize - 50 - 20 // 50 is safe margin of error
+        return wsMsgSize - tplSize - 50 // 50 is safe margin of error
     }
 
     private fun buildSSML(
@@ -228,7 +222,7 @@ class TTS {
         val pitch = metadata.pitch
         val rate = metadata.rate
         val volume = metadata.volume
-        return return """
+        return """
             X-RequestId:${newUUID()}
             Content-Type:application/ssml+xml
             X-Timestamp:${datetime2String()}
@@ -238,7 +232,7 @@ class TTS {
         """.trimIndent().replace("\n", "\r\n")
     }
 
-    data class AudioFrame(
+    class AudioFrame(
         val data: ByteArray?,
         val textCompleted: Boolean = false,
         val audioCompleted: Boolean = false
@@ -274,6 +268,35 @@ class TTS {
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
             .replace("'", "&apos;")
+    }
+
+    private fun String.removeEmojis(): String {
+        return this.replace("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+".toRegex(), "")
+            .replace("[\\u2600-\\u27BF]+".toRegex(), "")
+            .replace("[\\uD83D-\\uDDFF]+".toRegex(), "")
+            .replace("[\\uD83E-\\uDDFF]+".toRegex(), "")
+    }
+
+    private fun String.intoChunks(chunkSize: Int): List<String> {
+        val chunks = mutableListOf<String>()
+        val buffer = ByteBuffer.allocate(chunkSize)
+        for (char in this) {
+            val bytes = char.toString().toByteArray(Charsets.UTF_8)
+            if (buffer.remaining() < bytes.size) {
+                buffer.flip()
+                chunks.add(buffer.decodeString(Charsets.UTF_8))
+                buffer.clear()
+            }
+            buffer.put(bytes)
+        }
+        buffer.flip()
+        chunks.add(buffer.decodeString(Charsets.UTF_8))
+        return chunks
+    }
+
+    private fun String.invalid(): Boolean {
+        // todo:
+        return this.removeEmojis().trim().isEmpty()
     }
 
     private fun newUUID(): String {

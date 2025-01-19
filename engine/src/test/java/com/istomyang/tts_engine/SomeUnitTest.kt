@@ -1,10 +1,13 @@
 package com.istomyang.tts_engine
 
+import io.ktor.util.decodeString
+import io.ktor.util.moveToByteArray
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
 import org.junit.Test
+import java.nio.ByteBuffer
 
 class SomeUnitTest {
     @Test
@@ -36,9 +39,44 @@ class SomeUnitTest {
 
     @Test
     fun example2() {
-        val a = 10
-        var b = 15
-        val c = b / a
-        println(c)
+        val text = "123abc.。你好👋".removeEmojis() // 11 char
+        val chunkSize = 10
+        val chunks = mutableListOf<String>()
+
+        val buffer = ByteBuffer.allocate(chunkSize)
+        for (char in text) {
+            val bytes = char.toString().toByteArray(Charsets.UTF_8)
+            if (buffer.remaining() < bytes.size) {
+                buffer.flip()
+                chunks.add(buffer.decodeString(Charsets.UTF_8))
+                buffer.clear()
+            }
+            buffer.put(bytes)
+        }
+        buffer.flip()
+        chunks.add(buffer.decodeString(Charsets.UTF_8))
+
+        println(chunks)
+    }
+
+    private fun String.removeEmojis(): String {
+        return this.replace("[\\uD83C-\\uDBFF\\uDC00-\\uDFFF]+".toRegex(), "")
+            .replace("[\\u2600-\\u27BF]+".toRegex(), "")
+            .replace("[\\uD83D-\\uDDFF]+".toRegex(), "")
+            .replace("[\\uD83E-\\uDDFF]+".toRegex(), "")
+    }
+
+    @Test
+    fun example3() {
+        val buffer = ByteBuffer.allocate(10)
+        buffer.put(0)
+        println(buffer.position())
+        println(buffer.remaining())
+        println(buffer.limit())
+
+        buffer.flip()
+        val a = buffer.moveToByteArray()
+        println(a)
+        println(buffer.position())
     }
 }

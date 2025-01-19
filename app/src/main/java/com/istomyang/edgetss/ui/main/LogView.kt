@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FilterAlt
@@ -37,7 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.istomyang.edgetss.data.LogLevel
-import com.istomyang.edgetss.ui.main.component.IconButton
+import com.istomyang.edgetss.ui.main.component.IconButton2
 
 /**
  * LogScreen is a top level [Screen] config for [MainContent].
@@ -53,6 +54,7 @@ private fun LogContentView(openDrawer: () -> Unit) {
 
     val lines by viewModel.linesUiState.collectAsStateWithLifecycle()
     val logOpened by viewModel.logOpened.collectAsStateWithLifecycle()
+    val logDebugOpened by viewModel.logDebugOpened.collectAsStateWithLifecycle()
 
     LaunchedEffect(UInt) {
         viewModel.loadLogs()
@@ -67,9 +69,9 @@ private fun LogContentView(openDrawer: () -> Unit) {
             ), title = {
                 Text(text = "Log")
             }, navigationIcon = {
-                IconButton("Menu", Icons.Default.Menu) { openDrawer() }
+                IconButton2("Menu", Icons.Default.Menu) { openDrawer() }
             }, actions = {
-                IconButton(
+                IconButton2(
                     "Open Log",
                     if (logOpened) Icons.Filled.ToggleOn else Icons.Filled.ToggleOff,
                     modifier = Modifier.size(48.dp),
@@ -77,11 +79,19 @@ private fun LogContentView(openDrawer: () -> Unit) {
                 ) {
                     viewModel.openLog(!logOpened)
                 }
+                IconButton2(
+                    "Open Debug",
+                    Icons.Filled.BugReport,
+                    modifier = Modifier.size(32.dp),
+                    tint = if (logDebugOpened) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary
+                ) {
+                    viewModel.openDebugLog(!logDebugOpened)
+                }
             })
         }, bottomBar = {
             BottomAppBar(
                 actions = {
-                    IconButton("Clear", Icons.Default.CleaningServices) {
+                    IconButton2("Clear", Icons.Default.CleaningServices) {
                         viewModel.clearLog()
                     }
                     FilterView(
@@ -163,7 +173,7 @@ private fun FilterView(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Column {
-        IconButton("Level", Icons.Default.FilterAlt) {
+        IconButton2("Level", Icons.Default.FilterAlt) {
             expanded = !expanded
         }
         DropdownMenu(

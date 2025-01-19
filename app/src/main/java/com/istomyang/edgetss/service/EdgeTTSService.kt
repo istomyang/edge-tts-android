@@ -12,6 +12,7 @@ import com.istomyang.edgetss.data.repositoryLog
 import com.istomyang.edgetss.data.repositorySpeaker
 import com.istomyang.edgetss.utils.Codec
 import com.istomyang.tts_engine.TTS
+import io.ktor.util.moveToByteArray
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -19,11 +20,11 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import java.nio.ByteBuffer
 
 class EdgeTTSService : TextToSpeechService() {
     companion object {
@@ -50,8 +51,6 @@ class EdgeTTSService : TextToSpeechService() {
         speakerRepository = context.repositorySpeaker
 
         engine = TTS()
-
-        debug("start launching TTS engine.")
 
         scope.launch {
             launch { collectConfig() }
@@ -80,33 +79,13 @@ class EdgeTTSService : TextToSpeechService() {
     }
 
     private suspend fun collectConfig() {
-        var voiceOk = false
-        var formatOk = false
-
-        combine(
-            speakerRepository.getActiveFlow(),
-            speakerRepository.audioFormat()
-        ) { voice, format ->
+        speakerRepository.getActiveFlow().collect { voice ->
             if (voice != null) {
                 locale = voice.locale
                 voiceName = voice.name
-                voiceOk = true
-                info("use speaker: $voiceName - $locale")
-            }
-            if (format.isNotEmpty()) {
-                outputFormat = format
-                sampleRate = if (format.contains("opus")) {
-                    48000 // audio/opus in MediaCodec output sample rate change to 48khz.
-                } else {
-                    24000
-                }
-                formatOk = true
-                info("use audio output format: $outputFormat")
-            }
-            0
-        }.collect {
-            if (voiceOk && formatOk) {
+                outputFormat = voice.suggestedCodec
                 prepared = true
+                info("use speaker: $voiceName - $locale")
             }
         }
     }
@@ -133,10 +112,12 @@ class EdgeTTSService : TextToSpeechService() {
         var endOfText = false
         engine.output().onEach { frame ->
             if (frame.audioCompleted) {
+                debug("collect audio frame | audioCompleted")
                 return@onEach
             }
             if (frame.textCompleted) {
                 endOfText = true
+                debug("collect audio frame | textCompleted")
                 return@onEach
             }
         }.transform { frame ->
@@ -151,12 +132,14 @@ class EdgeTTSService : TextToSpeechService() {
         }.decode().catch {
             synthesisChannel.close()
             error("decode error: $it")
+            debug("collect audio frame | error: $it")
         }.onEach { frame ->
             if (frame.endOfFrame && endOfText) {
+                debug("collect audio frame | decode endOfText.")
                 synthesisChannel.send(null) // text is ok.
             }
-        }.collect {
-            it.data?.let {
+        }.collect { frame ->
+            frame.data?.let {
                 synthesisChannel.send(it)
             }
         }
@@ -173,6 +156,8 @@ class EdgeTTSService : TextToSpeechService() {
 
         info("start synthesizing text: $text")
 
+        debug("start synthesizing text: ${text.description}")
+
         runBlocking {
             callback.start(sampleRate, AudioFormat.ENCODING_PCM_16BIT, 1)
 
@@ -185,46 +170,54 @@ class EdgeTTSService : TextToSpeechService() {
                 pitch = "${pitch}Hz",
                 rate = "${rate}%",
             )
-            engine.input(text, metadata)
+            try {
+                engine.input(text, metadata)
+            } catch (e: Throwable) {
+                callback.error()
+                error("synthesize text error: $e")
+                return@runBlocking
+            }
 
             // 2. wait audio data
-            val bufSize = callback.maxBufferSize
-            var idx = 0
-            val bytes = ByteArray(bufSize)
-            while (true) {
-                val result = synthesisChannel.receiveCatching()
-                if (result.isClosed) {
-                    callback.error()
+            val buffer = ByteBuffer.allocate(callback.maxBufferSize)
+
+            for (data in synthesisChannel) {
+                if (data == null) {
+                    if (buffer.position() > 0) {
+                        buffer.flip()
+                        val a = buffer.moveToByteArray()
+                        callback.audioAvailable(a, 0, a.size)
+                    }
+                    debug("${text.description} | submit audio chunk to end.")
+                    callback.done()
                     return@runBlocking
                 }
+                if (data.size > buffer.remaining()) {
+                    val len = minOf(buffer.remaining(), data.size)
+                    buffer.put(data, 0, len)
+                    buffer.flip()
+                    val a = buffer.moveToByteArray()
+                    callback.audioAvailable(a, 0, a.size)
+                    buffer.clear()
 
-                result.getOrNull().let { data ->
-                    if (data == null) {
-                        if (idx > 0) {
-                            callback.audioAvailable(bytes, 0, idx)
-                        }
-                        callback.done()
-                        return@runBlocking
-                    }
-                    for (b in data) {
-                        if (idx == bufSize - 1) {
-                            callback.audioAvailable(bytes, 0, bufSize)
-                            idx = 0
-                        } else {
-                            bytes[idx] = b
-                            idx += 1
-                        }
-                    }
+                    buffer.put(data, len, data.size - len)
+                    continue
                 }
+                buffer.put(data)
             }
+
+            debug("${text.description} | error and exit this text.")
+            callback.error()
         }
     }
 
     private fun Flow<Codec.Frame>.decode(): Flow<Codec.Frame> = Codec(this).run(scope.coroutineContext)
 
     private fun debug(message: String) {
-        logRepository.debug(LOG_NAME, message)
         Log.d(LOG_NAME, message)
+        scope.launch {
+            logRepository.debug(LOG_NAME, message)
+        }
     }
 
     private fun info(message: String) {
@@ -236,5 +229,15 @@ class EdgeTTSService : TextToSpeechService() {
         logRepository.error(LOG_NAME, message)
         Log.e(LOG_NAME, message)
     }
+
+    private val String.description: String
+        get() {
+            val size = this.length
+            return if (size > 10) {
+                "${this.substring(0, 10)}..."
+            } else {
+                this
+            }
+        }
 }
 

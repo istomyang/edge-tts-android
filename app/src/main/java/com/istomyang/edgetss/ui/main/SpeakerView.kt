@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.RecentActors
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -61,7 +60,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.istomyang.edgetss.ui.main.component.IconButton
+import com.istomyang.edgetss.ui.main.component.IconButton2
 import com.istomyang.tts_engine.SpeakerManager
 import kotlinx.coroutines.launch
 
@@ -114,30 +113,30 @@ private fun SpeakerContentView(openDrawer: () -> Unit) {
             ), title = {
                 Text(text = "Edge TSS")
             }, navigationIcon = {
-                IconButton("Menu", Icons.Default.Menu) { openDrawer() }
+                IconButton2("Menu", Icons.Default.Menu) { openDrawer() }
             }, actions = {
                 when (editMode) {
                     true -> {
                         Text("${editItems.size} selected")
-                        IconButton(
+                        IconButton2(
                             "Delete", Icons.Filled.Delete
                         ) {
                             viewModel.removeSpeakers(editItems)
                         }
-                        IconButton("Cancel", Icons.Filled.Close) {
+                        IconButton2("Cancel", Icons.Filled.Close) {
                             editMode = false
                             editItems.clear()
                         }
                     }
                     false -> {
-                        IconButton("Open Settings", Icons.Filled.Settings) {
-                            openSetting = true
-                        }
-                        IconButton("Add Items", Icons.Filled.Add) {
+//                        IconButton("Open Settings", Icons.Filled.Settings) {
+//                            openSetting = true
+//                        }
+                        IconButton2("Add Items", Icons.Filled.Add) {
                             openPicker = true
                             viewModel.loadVoices()
                         }
-                        IconButton("Edit Items", Icons.Filled.Edit) {
+                        IconButton2("Edit Items", Icons.Filled.Edit) {
                             editMode = true
                         }
                     }

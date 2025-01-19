@@ -32,6 +32,7 @@ class LogRepository(
     private val preferenceDataSource: DataStore<Preferences>
 ) {
     val enabled = preferenceDataSource.data.map { it[KEY_ENABLED] == true }
+    val enabledDebug = preferenceDataSource.data.map { it[KEY_ENABLED_DEBUG] == true }
 
     suspend fun open(enabled: Boolean = true) {
         preferenceDataSource.edit {
@@ -39,7 +40,13 @@ class LogRepository(
         }
     }
 
-    fun insert(domain: String, level: LogLevel, message: String) {
+    suspend fun openDebug(enabled: Boolean = true) {
+        preferenceDataSource.edit {
+            it[KEY_ENABLED_DEBUG] = enabled
+        }
+    }
+
+    private fun insert(domain: String, level: LogLevel, message: String) {
         CoroutineScope(Dispatchers.IO).launch {
             if (!enabled.first()) {
                 return@launch
@@ -56,7 +63,12 @@ class LogRepository(
 
     fun info(domain: String, message: String) = insert(domain = domain, level = LogLevel.INFO, message = message)
 
-    fun debug(domain: String, message: String) = insert(domain = domain, level = LogLevel.DEBUG, message = message)
+    suspend fun debug(domain: String, message: String) {
+        if (!enabledDebug.first()) {
+            return
+        }
+        insert(domain = domain, level = LogLevel.DEBUG, message = message)
+    }
 
     fun error(domain: String, message: String) = insert(domain = domain, level = LogLevel.ERROR, message = message)
 
@@ -66,6 +78,11 @@ class LogRepository(
 
     suspend fun clear() {
         localDataSource.dao.clear()
+    }
+
+    suspend fun clearDebugBefore1Hour() {
+        val before = timestampBefore(0, 1, 0)
+        localDataSource.dao.clearDebug(before)
     }
 
     companion object {
@@ -87,6 +104,7 @@ class LogRepository(
         }
 
         private val KEY_ENABLED = booleanPreferencesKey("enabled")
+        private val KEY_ENABLED_DEBUG = booleanPreferencesKey("enabled-debug")
     }
 }
 
@@ -147,6 +165,9 @@ interface LogDao {
 
     @Query("DELETE FROM log")
     suspend fun clear()
+
+    @Query("DELETE FROM log WHERE level = 'DEBUG' AND created_at < :before")
+    suspend fun clearDebug(before: Long)
 }
 
 @Entity(tableName = "log", indices = [])
