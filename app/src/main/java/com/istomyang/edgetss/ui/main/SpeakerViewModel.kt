@@ -58,9 +58,8 @@ class SpeakerViewModel(
 
 
     fun addSpeakers(ids: List<String>) {
-        val ids = ids.filter { id -> !speakerUiState.value.any { it.id == id } }.toSet()
         viewModelScope.launch {
-            speakerRepository.insert(ids)
+            speakerRepository.insert(ids.filter { id -> !speakerUiState.value.any { it.id == id } }.toSet())
         }
     }
 

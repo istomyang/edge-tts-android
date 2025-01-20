@@ -10,21 +10,17 @@ import com.istomyang.edgetss.data.LogRepository
 import com.istomyang.edgetss.data.SpeakerRepository
 import com.istomyang.edgetss.data.repositoryLog
 import com.istomyang.edgetss.data.repositorySpeaker
-import com.istomyang.edgetss.utils.Codec
+import com.istomyang.edgetss.utils.Player
 import com.istomyang.tts_engine.TTS
-import io.ktor.util.moveToByteArray
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import java.nio.ByteBuffer
 
 class EdgeTTSService : TextToSpeechService() {
     companion object {
@@ -34,6 +30,7 @@ class EdgeTTSService : TextToSpeechService() {
     private val scope = CoroutineScope(Dispatchers.IO)
 
     private lateinit var engine: TTS
+    private lateinit var player: Player
     private lateinit var logRepository: LogRepository
     private lateinit var speakerRepository: SpeakerRepository
 
@@ -51,6 +48,7 @@ class EdgeTTSService : TextToSpeechService() {
         speakerRepository = context.repositorySpeaker
 
         engine = TTS()
+        player = Player()
 
         scope.launch {
             launch { collectConfig() }
@@ -61,7 +59,7 @@ class EdgeTTSService : TextToSpeechService() {
                 engine.run()
             } catch (_: CancellationException) {
             } catch (e: Throwable) {
-                synthesisChannel.close() // tell error occurs.
+                resultChannel.send(Result.failure(e)) // tell error occurs.
                 error("engine run error: $e")
             }
         }
@@ -76,6 +74,7 @@ class EdgeTTSService : TextToSpeechService() {
     }
 
     override fun onStop() {
+        player.pause()
     }
 
     private suspend fun collectConfig() {
@@ -102,48 +101,24 @@ class EdgeTTSService : TextToSpeechService() {
         return arrayOf("", "", "")
     }
 
-    /**
-     * Null represents the end of the text.
-     * Close represents error occurred.
-     */
-    private val synthesisChannel = Channel<ByteArray?>()
+    private val resultChannel = Channel<Result<Unit>>()
 
     private fun collectAudioFromEngine() = scope.launch {
-        var endOfText = false
-        engine.output().onEach { frame ->
+        engine.output().transform { frame ->
             if (frame.audioCompleted) {
-                debug("collect audio frame | audioCompleted")
-                return@onEach
-            }
-            if (frame.textCompleted) {
-                endOfText = true
-                debug("collect audio frame | textCompleted")
-                return@onEach
-            }
-        }.transform { frame ->
-            if (frame.audioCompleted) {
-                emit(Codec.Frame(null, endOfFrame = true))
+                emit(Player.Frame(null, endOfFrame = true))
                 return@transform
             }
             if (frame.textCompleted) {
                 return@transform
             }
-            emit(Codec.Frame(frame.data))
-        }.decode().catch {
-            synthesisChannel.close()
-            error("decode error: $it")
-            debug("collect audio frame | error: $it")
-        }.onEach { frame ->
-            if (frame.endOfFrame && endOfText) {
-                debug("collect audio frame | decode endOfText.")
-                synthesisChannel.send(null) // text is ok.
-            }
-        }.collect { frame ->
-            frame.data?.let {
-                synthesisChannel.send(it)
-            }
+            emit(Player.Frame(frame.data))
+        }.play {
+            resultChannel.send(Result.success(Unit))
         }
     }
+
+    private suspend fun Flow<Player.Frame>.play(onCompleted: suspend () -> Unit) = player.run(this, onCompleted)
 
     override fun onSynthesizeText(request: SynthesisRequest?, callback: SynthesisCallback?) {
         if (request == null || callback == null || !prepared) {
@@ -156,10 +131,10 @@ class EdgeTTSService : TextToSpeechService() {
 
         info("start synthesizing text: $text")
 
-        debug("start synthesizing text: ${text.description}")
-
         runBlocking {
             callback.start(sampleRate, AudioFormat.ENCODING_PCM_16BIT, 1)
+
+            player.play()
 
             // 1. input text
             val metadata = TTS.AudioMetaData(
@@ -178,40 +153,22 @@ class EdgeTTSService : TextToSpeechService() {
                 return@runBlocking
             }
 
-            // 2. wait audio data
-            val buffer = ByteBuffer.allocate(callback.maxBufferSize)
-
-            for (data in synthesisChannel) {
-                if (data == null) {
-                    if (buffer.position() > 0) {
-                        buffer.flip()
-                        val a = buffer.moveToByteArray()
-                        callback.audioAvailable(a, 0, a.size)
+            // 2. wait result
+            for (result in resultChannel) {
+                when {
+                    result.isSuccess -> {
+                        callback.done()
+                        break
                     }
-                    debug("${text.description} | submit audio chunk to end.")
-                    callback.done()
-                    return@runBlocking
-                }
-                if (data.size > buffer.remaining()) {
-                    val len = minOf(buffer.remaining(), data.size)
-                    buffer.put(data, 0, len)
-                    buffer.flip()
-                    val a = buffer.moveToByteArray()
-                    callback.audioAvailable(a, 0, a.size)
-                    buffer.clear()
 
-                    buffer.put(data, len, data.size - len)
-                    continue
+                    result.isFailure -> {
+                        callback.error()
+                        break
+                    }
                 }
-                buffer.put(data)
             }
-
-            debug("${text.description} | error and exit this text.")
-            callback.error()
         }
     }
-
-    private fun Flow<Codec.Frame>.decode(): Flow<Codec.Frame> = Codec(this).run(scope.coroutineContext)
 
     private fun debug(message: String) {
         Log.d(LOG_NAME, message)

@@ -7,8 +7,10 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import java.nio.ByteBuffer
 
 /**
  * Example local unit test, which will execute on the development machine (host).
@@ -106,6 +108,29 @@ class ExampleUnitTest {
     private fun squared(src: Flow<Int>) = flow {
         src.collect {
             emit(it * 2)
+        }
+    }
+
+    @Test
+    fun example2() {
+        runBlocking {
+            val buffer = ByteBuffer.allocate(100)
+
+            launch {
+                for (i in 1..10) {
+                    delay(100)
+                    buffer.put(i.toByte())
+                    println(i)
+                }
+            }
+
+            while (true) {
+                if (buffer.position() != buffer.limit()) {
+                    delay(30)
+                    continue
+                }
+                println("ok")
+            }
         }
     }
 }

@@ -16,14 +16,24 @@ class ChannelUnitTest {
                 repeat(8) {
                     channel.send(it)
                 }
-                channel.close()
+                channel.close(Exception("123"))
                 close.send(Unit)
             }
 
             close.receive()
 
-            for (num in channel) {
-                println(num)
+            try {
+                while (true) {
+                    val a = channel.receiveCatching()
+                    if (a.isClosed) {
+                        a.exceptionOrNull()?.let {
+                            throw it
+                        }
+                        break
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
 
             println("Done")

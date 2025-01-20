@@ -129,7 +129,7 @@ private fun SpeakerContentView(openDrawer: () -> Unit) {
                         }
                     }
                     false -> {
-//                        IconButton("Open Settings", Icons.Filled.Settings) {
+//                        IconButton2("Open Settings", Icons.Filled.Settings) {
 //                            openSetting = true
 //                        }
                         IconButton2("Add Items", Icons.Filled.Add) {

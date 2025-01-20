@@ -1,5 +1,6 @@
 package com.istomyang.edgetss.utils
 
+import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaDataSource
 import android.media.MediaExtractor
@@ -8,21 +9,33 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.Channel.Factory.UNLIMITED
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.nio.ByteBuffer
 import kotlin.coroutines.CoroutineContext
 
-class Codec(private val source: Flow<Frame>) {
+private fun debug(msg: String) {
+    Log.d("EdgeTTSService Codec", msg)
+}
+
+class Codec(private val source: Flow<Frame>, private val context: Context) {
+
     class Frame(val data: ByteArray?, val endOfFrame: Boolean = false)
 
     fun run(context: CoroutineContext): Flow<Frame> = flow {
-        val dataChannel = Channel<Flow<ByteArray>>(8)
+        val dataChannel = Channel<Flow<ByteArray>>()
         val resultChannel = Channel<ByteArray?>() // null is eof of frame.
+
+        var pkgSendCount = 0
+        var pkgReceiveCount = 0
+        var mut = Mutex()
 
         CoroutineScope(context).launch {
             var ch: Channel<ByteArray>? = null
@@ -30,13 +43,19 @@ class Codec(private val source: Flow<Frame>) {
                 dataChannel.close() // wait decode.
             }.collect { frame ->
                 if (frame.endOfFrame) {
+                    mut.withLock {
+                        debug("send pkg: $pkgSendCount")
+                    }
                     ch?.close()
                     ch = null
                     return@collect
                 }
                 if (ch == null) {
-                    ch = Channel()
+                    ch = Channel(UNLIMITED)
                     dataChannel.send(ch!!.consumeAsFlow())
+                }
+                mut.withLock {
+                    pkgSendCount++
                 }
                 ch!!.send(frame.data!!)
             }
@@ -50,7 +69,16 @@ class Codec(private val source: Flow<Frame>) {
                     decode(src).onCompletion {
                         resultChannel.send(null)
                     }.collect {
+                        mut.withLock {
+                            pkgReceiveCount += 1
+                        }
                         resultChannel.send(it)
+                    }
+
+                    mut.withLock {
+                        debug("receive pkg: $pkgReceiveCount a: ${pkgReceiveCount / pkgSendCount}")
+                        pkgReceiveCount = 0
+                        pkgSendCount = 0
                     }
                 }
             } catch (e: Throwable) {
@@ -79,7 +107,10 @@ class Codec(private val source: Flow<Frame>) {
     private fun decode(source: Flow<ByteArray>): Flow<ByteArray> = flow {
         val extractor = MediaExtractor()
 
-        AudioDataSource(source).register(extractor, 1024)
+        var endOfSource = false
+        AudioDataSource(source.onCompletion {
+            endOfSource = true
+        }).register(extractor, 1024)
 
         val trackIndex = getAudioTrackIndex(extractor)
         val format = extractor.getTrackFormat(trackIndex)
@@ -96,7 +127,11 @@ class Codec(private val source: Flow<Frame>) {
                 val buffer = codec.getInputBuffer(inputIndex)
                 when (val sampleSize = extractor.readSampleData(buffer!!, 0)) {
                     -1 -> {
-                        codec.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                        if (endOfSource) {
+                            codec.queueInputBuffer(inputIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
+                        } else {
+                            codec.queueInputBuffer(inputIndex, 0, 0, 0, 0)
+                        }
                     }
                     else -> {
                         codec.queueInputBuffer(inputIndex, 0, sampleSize, extractor.sampleTime, 0)
@@ -117,7 +152,9 @@ class Codec(private val source: Flow<Frame>) {
                 codec.releaseOutputBuffer(outputIndex, false)
             } else if (outputIndex == MediaCodec.INFO_TRY_AGAIN_LATER) {
                 // wait 200ms is enough for codec to decode any pending data.
-                break
+                if (endOfSource) {
+                    break
+                }
             }
         }
 
@@ -151,6 +188,7 @@ class Codec(private val source: Flow<Frame>) {
             }
         }
 
+
         suspend fun register(extractor: MediaExtractor, loadSize: Int, errCount: Int = 0) {
             while (buffer0.position() < loadSize) {
                 delay(100)
@@ -177,6 +215,17 @@ class Codec(private val source: Flow<Frame>) {
         }
 
         override fun getSize(): Long = -1
+
+        private fun ByteBuffer.copyTo(position: Long, buffer: ByteArray, offset: Int, size: Int): Int {
+            if (position > position()) {
+                return 0
+            }
+            val start = position.toInt()
+            val read = minOf(size - offset, position() - start)
+            val arr = this.array()
+            System.arraycopy(arr, start, buffer, offset, read)
+            return read
+        }
     }
 
     /**
@@ -184,7 +233,7 @@ class Codec(private val source: Flow<Frame>) {
      * See BufferUnitTest.kt
      */
     private class ByteBuffer2 {
-        private var cap = 1024 * 100 // 100KB
+        private var cap = 1024 * 10 // 10KB
         private var buffer = ByteBuffer.allocate(cap)
 
         fun put(b: ByteArray) {
@@ -221,7 +270,6 @@ class Codec(private val source: Flow<Frame>) {
             System.arraycopy(oldArray, 0, newArray, 0, position)
             buffer = ByteBuffer.wrap(newArray)
             buffer.position(position)
-            println(buffer.position())
         }
     }
 }
